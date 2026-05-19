@@ -1,0 +1,496 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Travel App API",
+    "version": "1.0.0",
+    "description": "Backend for the travel mobile app: auth, places, reviews, favorites, uploads."
+  },
+  "servers": [{ "url": "/", "description": "Same host (e.g. http://localhost:3000)" }],
+  "tags": [
+    { "name": "Health" },
+    { "name": "Auth" },
+    { "name": "Users" },
+    { "name": "Places" },
+    { "name": "Reviews" },
+    { "name": "Uploads" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "accessToken from POST /api/v1/auth/login or /register"
+      }
+    },
+    "schemas": {
+      "OkWrapper": {
+        "type": "object",
+        "properties": { "ok": { "type": "boolean", "example": true } },
+        "required": ["ok"]
+      },
+      "ErrorBody": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": false },
+          "error": { "type": "string" }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8 },
+          "fullName": { "type": "string" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "accessToken": { "type": "string" },
+              "user": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "UpdateMeRequest": {
+        "type": "object",
+        "properties": {
+          "fullName": { "type": "string" },
+          "username": { "type": "string" },
+          "location": { "type": "string" },
+          "avatarUrl": { "type": "string", "format": "uri" }
+        }
+      },
+      "CreateReviewRequest": {
+        "type": "object",
+        "required": ["rating", "content"],
+        "properties": {
+          "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "content": { "type": "string" },
+          "imageUrls": { "type": "array", "items": { "type": "string", "format": "uri" } }
+        }
+      },
+      "UpdateReviewRequest": {
+        "type": "object",
+        "description": "At least one field required. imageUrls replaces all review images when provided.",
+        "properties": {
+          "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "content": { "type": "string" },
+          "imageUrls": { "type": "array", "items": { "type": "string", "format": "uri" } }
+        }
+      },
+      "ListMeta": {
+        "type": "object",
+        "required": ["total", "limit", "offset"],
+        "properties": {
+          "total": { "type": "integer", "minimum": 0 },
+          "limit": { "type": "integer", "minimum": 1 },
+          "offset": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Liveness",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "supabase": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RegisterRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } }
+            }
+          },
+          "409": {
+            "description": "EMAIL_TAKEN",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } }
+            }
+          },
+          "401": {
+            "description": "INVALID_CREDENTIALS",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorBody" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Current user profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "additionalProperties": true }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "patch": {
+        "tags": ["Users"],
+        "summary": "Update profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateMeRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" },
+          "409": { "description": "USERNAME_TAKEN" }
+        }
+      }
+    },
+    "/api/v1/users/me/reviews": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Reviews written by current user",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 0, "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "type": "object" } },
+                    "meta": { "$ref": "#/components/schemas/ListMeta" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/users/me/favorites": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "List saved places",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/users/me/favorites/places/{placeId}": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Add favorite",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "placeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "201": { "description": "Created" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "PLACE_NOT_FOUND" }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Remove favorite",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "placeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/places": {
+      "get": {
+        "tags": ["Places"],
+        "summary": "List places",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["attractions", "dining", "festivals"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 0, "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "type": "object" } },
+                    "meta": { "$ref": "#/components/schemas/ListMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/places/{placeId}": {
+      "get": {
+        "tags": ["Places"],
+        "summary": "Place detail (optional JWT sets isFavorite)",
+        "parameters": [{ "name": "placeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "NOT_FOUND" }
+        }
+      }
+    },
+    "/api/v1/places/{placeId}/reviews": {
+      "get": {
+        "tags": ["Places"],
+        "summary": "List reviews for place",
+        "parameters": [
+          { "name": "placeId", "in": "path", "required": true, "schema": { "type": "string" } },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 0, "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "type": "object" } },
+                    "meta": { "$ref": "#/components/schemas/ListMeta" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "PLACE_NOT_FOUND" }
+        }
+      },
+      "post": {
+        "tags": ["Places"],
+        "summary": "Create review",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "placeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateReviewRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "PLACE_NOT_FOUND" }
+        }
+      }
+    },
+    "/api/v1/reviews/{reviewId}": {
+      "patch": {
+        "tags": ["Reviews"],
+        "summary": "Update own review",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "reviewId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateReviewRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "VALIDATION" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "FORBIDDEN" },
+          "404": { "description": "REVIEW_NOT_FOUND" }
+        }
+      },
+      "delete": {
+        "tags": ["Reviews"],
+        "summary": "Delete own review",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "reviewId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "FORBIDDEN" },
+          "404": { "description": "REVIEW_NOT_FOUND" }
+        }
+      }
+    },
+    "/api/v1/reviews/{reviewId}/likes/toggle": {
+      "post": {
+        "tags": ["Reviews"],
+        "summary": "Toggle like",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "reviewId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "REVIEW_NOT_FOUND" }
+        }
+      }
+    },
+    "/api/v1/uploads/review-image": {
+      "post": {
+        "tags": ["Uploads"],
+        "summary": "Upload one review image (Supabase Storage when configured)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Uploaded" },
+          "400": { "description": "MISSING_FILE" },
+          "401": { "description": "Unauthorized" },
+          "413": { "description": "FILE_TOO_LARGE" },
+          "415": { "description": "UNSUPPORTED_MEDIA_TYPE" },
+          "503": { "description": "STORAGE_UNAVAILABLE" }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "OpenAPI specification (JSON)",
+        "responses": {
+          "200": {
+            "description": "Specification",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+*.db
+*.db-journal
+scripts/database/sql/*.sql
+!scripts/database/sql/*.example.sql
+

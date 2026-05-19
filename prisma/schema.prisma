@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum PlaceCategory {
+  ATTRACTIONS
+  DINING
+  FESTIVALS
+}
+
+enum UserRole {
+  TRAVELER
+  OWNER
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(TRAVELER)
+  fullName     String?
+  username     String?   @unique
+  location     String?
+  avatarUrl    String?
+  createdAt    DateTime  @default(now())
+  reviews      Review[]
+  reviewLikes  ReviewLike[]
+  favorites    Favorite[]
+  ownedPlaces  Place[]
+}
+
+model Place {
+  id               String       @id @default(cuid())
+  ownerId          Int?
+  name             String
+  region           String
+  category         PlaceCategory
+  coverImageUrl    String
+  featureLabel     String
+  averageRating    Float        @default(0)
+  ratingCount      Int          @default(0)
+  about            String       @default("")
+  priceLevel       Float?
+  latitude         Float?
+  longitude        Float?
+  owner            User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  reviews          Review[]
+  favorites        Favorite[]
+  promotions       Promotion[]
+}
+
+model Promotion {
+  id           String   @id @default(cuid())
+  placeId      String
+  title        String
+  isActive     Boolean  @default(true)
+  startDate    String
+  endDate      String
+  days         String[]
+  startTime    String   @default("")
+  endTime      String   @default("")
+  specificTime Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  place        Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id        String       @id @default(cuid())
+  placeId   String
+  userId    Int
+  rating    Int
+  content   String
+  createdAt DateTime     @default(now())
+  place     Place        @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images    ReviewImage[]
+  likes     ReviewLike[]
+}
+
+model ReviewImage {
+  id       String @id @default(cuid())
+  reviewId String
+  url      String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
+
+model ReviewLike {
+  id        Int    @id @default(autoincrement())
+  reviewId  String
+  userId    Int
+  review    Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+}
+
+model Favorite {
+  userId  Int
+  placeId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place   Place  @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, placeId])
+}
