@@ -16,6 +16,7 @@ function toListDto(p: {
   ratingCount: number;
   featureLabel: string;
   coverImageUrl: string;
+  images: { url: string }[];
 }) {
   return {
     Id: p.id,
@@ -25,6 +26,7 @@ function toListDto(p: {
     NumberOfRate: p.ratingCount,
     Features: p.featureLabel,
     image: p.coverImageUrl,
+    images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
   };
 }
 
@@ -46,6 +48,7 @@ export const placesService = {
       prisma.place.findMany({
         where,
         orderBy: { ratingCount: "desc" },
+        include: { images: { orderBy: { createdAt: "asc" } } },
         skip: paging.offset,
         take: paging.limit,
       }),
@@ -62,6 +65,7 @@ export const placesService = {
     const place = await prisma.place.findUnique({
       where: { id: placeId },
       include: {
+        images: { orderBy: { createdAt: "asc" } },
         reviews: {
           include: {
             user: { select: { fullName: true, username: true, avatarUrl: true } },
@@ -94,6 +98,7 @@ export const placesService = {
       Rate: place.averageRating,
       NumberOfRate: place.ratingCount,
       Image: place.coverImageUrl,
+      Images: [place.coverImageUrl, ...place.images.map((img) => img.url)],
       Features: place.featureLabel,
       about: place.about,
       priceLevel: place.priceLevel,

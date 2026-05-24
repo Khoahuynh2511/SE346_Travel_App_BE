@@ -5,7 +5,9 @@ export const favoritesService = {
     const rows = await prisma.favorite.findMany({
       where: { userId },
       include: {
-        place: true,
+        place: {
+          include: { images: { orderBy: { createdAt: "asc" } } },
+        },
       },
     });
     return rows.map(({ place: p }) => ({
@@ -16,6 +18,7 @@ export const favoritesService = {
       NumberOfRate: p.ratingCount,
       Features: p.featureLabel,
       image: p.coverImageUrl,
+      images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
     }));
   },
 

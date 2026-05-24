@@ -53,6 +53,15 @@ model Place {
   reviews          Review[]
   favorites        Favorite[]
   promotions       Promotion[]
+  images           PlaceImage[]
+}
+
+model PlaceImage {
+  id        String   @id @default(cuid())
+  placeId   String
+  url       String
+  createdAt DateTime @default(now())
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 }
 
 model Promotion {

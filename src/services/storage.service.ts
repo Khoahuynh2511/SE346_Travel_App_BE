@@ -6,39 +6,60 @@ import { getSupabaseAdmin } from "../integrations/supabaseAdmin.js";
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
+function getFileExtension(mimetype: string) {
+  return mimetype === "image/jpeg" ? "jpg" : (mimetype.split("/")[1] ?? "bin");
+}
+
+async function uploadFileToBucket(
+  bucket: string,
+  objectPath: string,
+  file: Express.Multer.File
+) {
+  const client = getSupabaseAdmin();
+  if (!client) {
+    throw Object.assign(new Error("STORAGE_UNAVAILABLE"), { statusCode: 503 });
+  }
+
+  if (file.size > MAX_BYTES) {
+    throw Object.assign(new Error("FILE_TOO_LARGE"), { statusCode: 413 });
+  }
+
+  if (!ALLOWED.has(file.mimetype)) {
+    throw Object.assign(new Error("UNSUPPORTED_MEDIA_TYPE"), { statusCode: 415 });
+  }
+
+  const { error: upErr } = await client.storage
+    .from(bucket)
+    .upload(objectPath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+  if (upErr) {
+    const mapped = Object.assign(new Error(upErr.message), { statusCode: 502 as const });
+    throw mapped;
+  }
+
+  const { data: pub } = client.storage.from(bucket).getPublicUrl(objectPath);
+  return { path: objectPath, publicUrl: pub.publicUrl };
+}
+
 export const storageService = {
   async uploadReviewImage(userId: number, file: Express.Multer.File): Promise<{ path: string; publicUrl: string }> {
-    const client = getSupabaseAdmin();
-    if (!client) {
-      throw Object.assign(new Error("STORAGE_UNAVAILABLE"), { statusCode: 503 });
-    }
-
-    if (file.size > MAX_BYTES) {
-      throw Object.assign(new Error("FILE_TOO_LARGE"), { statusCode: 413 });
-    }
-
-    if (!ALLOWED.has(file.mimetype)) {
-      throw Object.assign(new Error("UNSUPPORTED_MEDIA_TYPE"), { statusCode: 415 });
-    }
-
-    const ext =
-      file.mimetype === "image/jpeg"
-        ? "jpg"
-        : (file.mimetype.split("/")[1] ?? "bin");
-    const objectPath = `${userId}/${randomBytes(16).toString("hex")}.${ext}`;
     const bucket = env.supabaseStorageBucket;
+    const objectPath = `${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(file.mimetype)}`;
+    return uploadFileToBucket(bucket, objectPath, file);
+  },
 
-    const { error: upErr } = await client.storage
-      .from(bucket)
-      .upload(objectPath, file.buffer, { contentType: file.mimetype, upsert: false });
-
-    if (upErr) {
-      const mapped = Object.assign(new Error(upErr.message), { statusCode: 502 as const });
-      throw mapped;
-    }
-
-    const { data: pub } = client.storage.from(bucket).getPublicUrl(objectPath);
-    return { path: objectPath, publicUrl: pub.publicUrl };
+  async uploadReviewImages(
+    userId: number,
+    files: Express.Multer.File[]
+  ): Promise<{ items: { path: string; publicUrl: string }[] }> {
+    const bucket = env.supabaseStorageBucket;
+    const items = await Promise.all(
+      files.map((file) => {
+        const objectPath = `${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(file.mimetype)}`;
+        return uploadFileToBucket(bucket, objectPath, file);
+      })
+    );
+    return { items };
   },
 
   async uploadPlaceCover(
@@ -55,19 +76,9 @@ export const storageService = {
     if (!ALLOWED.has(file.mimetype)) {
       throw Object.assign(new Error("UNSUPPORTED_MEDIA_TYPE"), { statusCode: 415 });
     }
-    const ext =
-      file.mimetype === "image/jpeg"
-        ? "jpg"
-        : (file.mimetype.split("/")[1] ?? "bin");
+    const ext = getFileExtension(file.mimetype);
     const objectPath = `places/${userId}/${randomBytes(16).toString("hex")}.${ext}`;
     const bucket = env.supabaseStorageBucket;
-    const { error: upErr } = await client.storage
-      .from(bucket)
-      .upload(objectPath, file.buffer, { contentType: file.mimetype, upsert: false });
-    if (upErr) {
-      throw Object.assign(new Error(upErr.message), { statusCode: 502 as const });
-    }
-    const { data: pub } = client.storage.from(bucket).getPublicUrl(objectPath);
-    return { path: objectPath, publicUrl: pub.publicUrl };
+    return uploadFileToBucket(bucket, objectPath, file);
   },
 };

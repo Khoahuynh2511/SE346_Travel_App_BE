@@ -23,6 +23,7 @@ const createPlaceSchema = z.object({
   category: z.string().min(1),
   about: z.string().default(""),
   coverImageUrl: z.string().url(),
+  imageUrls: z.array(z.string().url()).optional(),
   featureLabel: z.string().default("Open Now"),
   priceLevel: z.number().optional(),
   latitude: z.number().optional(),
@@ -52,12 +53,14 @@ function toOwnerPlaceDto(p: {
   name: string;
   region: string;
   coverImageUrl: string;
+  images: { url: string }[];
 }) {
   return {
     Id: p.id,
     Name: p.name,
     Location: p.region,
     Image: p.coverImageUrl,
+    Images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
   };
 }
 
@@ -115,11 +118,16 @@ async function createPromotionsForPlace(
   });
 }
 
+function uniqueUrls(urls: string[]) {
+  return Array.from(new Set(urls));
+}
+
 export const ownerService = {
   async listPlaces(ownerId: number) {
     const list = await prisma.place.findMany({
       where: { ownerId },
       orderBy: { name: "asc" },
+      include: { images: { orderBy: { createdAt: "asc" } } },
     });
     return list.map(toOwnerPlaceDto);
   },
@@ -127,7 +135,10 @@ export const ownerService = {
   async getPlace(ownerId: number, placeId: string) {
     const place = await prisma.place.findFirst({
       where: { id: placeId, ownerId },
-      include: { promotions: { orderBy: { createdAt: "desc" } } },
+      include: {
+        promotions: { orderBy: { createdAt: "desc" } },
+        images: { orderBy: { createdAt: "asc" } },
+      },
     });
     if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
     return {
@@ -135,6 +146,7 @@ export const ownerService = {
       Name: place.name,
       Location: place.region,
       Image: place.coverImageUrl,
+      Images: [place.coverImageUrl, ...place.images.map((img) => img.url)],
       category: place.category,
       about: place.about,
       featureLabel: place.featureLabel,
@@ -161,10 +173,21 @@ export const ownerService = {
         longitude: data.longitude ?? null,
       },
     });
+    const imageUrls = uniqueUrls(data.imageUrls ?? []).filter((url) => url !== data.coverImageUrl);
+    if (imageUrls.length > 0) {
+      await prisma.placeImage.createMany({
+        data: imageUrls.map((url) => ({ placeId: place.id, url })),
+      });
+    }
     if (data.promotions?.length) {
       await createPromotionsForPlace(place.id, data.promotions);
     }
-    return toOwnerPlaceDto(place);
+    const created = await prisma.place.findUnique({
+      where: { id: place.id },
+      include: { images: { orderBy: { createdAt: "asc" } } },
+    });
+    if (!created) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
+    return toOwnerPlaceDto(created);
   },
 
   async updatePlace(ownerId: number, placeId: string, body: unknown) {
@@ -184,7 +207,21 @@ export const ownerService = {
         ...(data.longitude !== undefined ? { longitude: data.longitude } : {}),
       },
     });
-    return toOwnerPlaceDto(place);
+    if (data.imageUrls !== undefined) {
+      const imageUrls = uniqueUrls(data.imageUrls).filter((url) => url !== place.coverImageUrl);
+      await prisma.placeImage.deleteMany({ where: { placeId } });
+      if (imageUrls.length > 0) {
+        await prisma.placeImage.createMany({
+          data: imageUrls.map((url) => ({ placeId, url })),
+        });
+      }
+    }
+    const updated = await prisma.place.findUnique({
+      where: { id: placeId },
+      include: { images: { orderBy: { createdAt: "asc" } } },
+    });
+    if (!updated) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
+    return toOwnerPlaceDto(updated);
   },
 
   async deletePlace(ownerId: number, placeId: string) {

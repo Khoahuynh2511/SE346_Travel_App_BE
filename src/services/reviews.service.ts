@@ -105,7 +105,7 @@ export const reviewsService = {
         where,
         include: {
           place: {
-            select: { id: true, name: true, coverImageUrl: true, region: true },
+            include: { images: { orderBy: { createdAt: "asc" } } },
           },
           images: true,
           _count: { select: { likes: true } },
@@ -122,6 +122,7 @@ export const reviewsService = {
         placeId: r.placeId,
         placeName: r.place.name,
         placeCoverUrl: r.place.coverImageUrl,
+        placeImages: [r.place.coverImageUrl, ...r.place.images.map((img) => img.url)],
         placeRegion: r.place.region,
         Rate: r.rating,
         date: r.createdAt.toLocaleDateString("en-US", {
