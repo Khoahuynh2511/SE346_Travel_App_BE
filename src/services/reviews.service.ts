@@ -49,6 +49,7 @@ function mapReviewListItem(r: {
 }) {
   return {
     id: r.id,
+    userId: r.userId,
     username: r.user.fullName || r.user.username || "Traveler",
     Rate: r.rating,
     date: r.createdAt.toLocaleDateString("en-US", {

@@ -29,6 +29,22 @@ authRouter.post(
 );
 
 authRouter.post(
+  "/reset-password",
+  wrapAsync(async (req, res) => {
+    try {
+      const out = await authService.resetPassword(req.body);
+      res.json({ ok: true, data: out });
+    } catch (e) {
+      if (e instanceof Error && e.message === "INVALID_RESET_TOKEN") {
+        res.status(400).json(jsonError(400, "INVALID_RESET_TOKEN"));
+        return;
+      }
+      throw e;
+    }
+  })
+);
+
+authRouter.post(
   "/oauth/:provider",
   wrapAsync(async (req, res) => {
     const provider = String(req.params.provider);

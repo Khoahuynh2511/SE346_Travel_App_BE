@@ -80,6 +80,7 @@ export const placesService = {
     const reviews = place.reviews.map((r) => {
       const displayName = r.user.fullName || r.user.username || "Traveler";
       return {
+        userId: r.userId,
         ava:
           r.user.avatarUrl ??
           `https://i.pravatar.cc/150?u=${encodeURIComponent(displayName)}`,

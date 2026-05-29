@@ -91,6 +91,7 @@ Tiền tố: `/api/v1`
 | POST | `/auth/register` | — |
 | POST | `/auth/login` | — |
 | POST | `/auth/forgot-password` | — |
+| POST | `/auth/reset-password` | — |
 | POST | `/auth/oauth/:provider` | — (google/apple: 501 chưa cấu hình) |
 
 ### Users
