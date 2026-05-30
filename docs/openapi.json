@@ -70,13 +70,41 @@
           }
         }
       },
+      "ApiUser": {
+        "type": "object",
+        "required": ["id", "email", "fullName", "username", "avatarUrl", "location", "name", "role"],
+        "properties": {
+          "id": { "type": "integer" },
+          "email": { "type": "string", "format": "email" },
+          "fullName": { "type": "string", "nullable": true },
+          "username": { "type": "string", "nullable": true },
+          "avatarUrl": { "type": "string", "format": "uri", "nullable": true },
+          "location": { "type": "string", "nullable": true },
+          "name": { "type": "string" },
+          "role": { "type": "string", "enum": ["user", "admin"] }
+        }
+      },
+      "ApiUserResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/ApiUser" }
+        }
+      },
       "UpdateMeRequest": {
         "type": "object",
         "properties": {
           "fullName": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
           "username": { "type": "string" },
           "location": { "type": "string" },
-          "avatarUrl": { "type": "string", "format": "uri" }
+          "avatarUrl": {
+            "oneOf": [
+              { "type": "string", "format": "uri" },
+              { "type": "string", "enum": [""] }
+            ]
+          }
         }
       },
       "CreateReviewRequest": {
@@ -284,7 +312,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object", "additionalProperties": true }
+                "schema": { "$ref": "#/components/schemas/ApiUserResponse" }
               }
             }
           },
@@ -301,9 +329,16 @@
           }
         },
         "responses": {
-          "200": { "description": "OK" },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiUserResponse" }
+              }
+            }
+          },
           "401": { "description": "Unauthorized" },
-          "409": { "description": "USERNAME_TAKEN" }
+          "409": { "description": "USERNAME_TAKEN or EMAIL_TAKEN" }
         }
       }
     },
@@ -536,6 +571,55 @@
           "200": { "description": "OK" },
           "401": { "description": "Unauthorized" },
           "404": { "description": "REVIEW_NOT_FOUND" }
+        }
+      }
+    },
+    "/api/v1/uploads/avatar": {
+      "post": {
+        "tags": ["Uploads"],
+        "summary": "Upload current user's avatar image",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "data"],
+                  "properties": {
+                    "ok": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "required": ["publicUrl"],
+                      "properties": {
+                        "publicUrl": { "type": "string", "format": "uri" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "MISSING_FILE" },
+          "401": { "description": "Unauthorized" },
+          "413": { "description": "FILE_TOO_LARGE" },
+          "415": { "description": "UNSUPPORTED_MEDIA_TYPE" },
+          "503": { "description": "STORAGE_UNAVAILABLE" }
         }
       }
     },

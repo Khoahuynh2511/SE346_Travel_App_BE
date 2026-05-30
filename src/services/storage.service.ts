@@ -42,6 +42,12 @@ async function uploadFileToBucket(
 }
 
 export const storageService = {
+  async uploadAvatar(userId: number, file: Express.Multer.File): Promise<{ path: string; publicUrl: string }> {
+    const bucket = env.supabaseStorageBucket;
+    const objectPath = `avatars/${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(file.mimetype)}`;
+    return uploadFileToBucket(bucket, objectPath, file);
+  },
+
   async uploadReviewImage(userId: number, file: Express.Multer.File): Promise<{ path: string; publicUrl: string }> {
     const bucket = env.supabaseStorageBucket;
     const objectPath = `${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(file.mimetype)}`;

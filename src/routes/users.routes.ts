@@ -30,6 +30,10 @@ usersRouter.patch(
         res.status(409).json(jsonError(409, "USERNAME_TAKEN"));
         return;
       }
+      if (e instanceof Error && e.message === "EMAIL_TAKEN") {
+        res.status(409).json(jsonError(409, "EMAIL_TAKEN"));
+        return;
+      }
       throw e;
     }
   })
