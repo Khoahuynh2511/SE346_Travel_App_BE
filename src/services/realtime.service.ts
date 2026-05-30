@@ -9,7 +9,7 @@ export const realtimeService = {
     if (!client) return;
 
     const channel = client.channel(env.supabaseBroadcastChannel, {
-      config: { broadcast: { self: false } },
+      config: { broadcast: { self: false } }, //nghĩa là người gửi không tự nhận lại message của chính mình.
     });
 
     try {
