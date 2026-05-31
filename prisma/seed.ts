@@ -959,7 +959,9 @@ async function main() {
       currentHotelPlaceId: createdPlaces[1],
       startDate: new Date("2026-11-12T00:00:00.000Z"),
       endDate: new Date("2026-11-18T00:00:00.000Z"),
+      budget: 8000000,
       totalBudgetPerPerson: 8000000,
+      coverImageUrl: createdPlaceCoverImages[1],
       currency: "VND",
       members: {
         create: [
@@ -1159,7 +1161,9 @@ async function main() {
       currentHotelName: "Khách sạn Trung Tâm Boutique",
       startDate: new Date("2026-12-05T00:00:00.000Z"),
       endDate: new Date("2026-12-07T00:00:00.000Z"),
+      budget: 4500000,
       totalBudgetPerPerson: 4500000,
+      coverImageUrl: createdPlaceCoverImages[5],
       currency: "VND",
       members: {
         create: [
