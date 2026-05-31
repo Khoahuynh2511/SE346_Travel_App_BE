@@ -9,6 +9,7 @@ import { reviewsRouter } from "./routes/reviews.routes.js";
 import { uploadsRouter } from "./routes/uploads.routes.js";
 import { ownerRouter } from "./routes/owner.routes.js";
 import { aiRouter } from "./routes/ai.routes.js";
+import { tripsRouter } from "./routes/trips.routes.js";
 import { supabaseConfigured } from "./integrations/supabaseAdmin.js";
 import { httpErrorMiddleware } from "./http/errors.js";
 import type { NextFunction, Request, Response } from "express";
@@ -40,6 +41,7 @@ api.use("/reviews", reviewsRouter);
 api.use("/uploads", uploadsRouter);
 api.use("/owner", ownerRouter);
 api.use("/ai", aiRouter);
+api.use("/trips", tripsRouter);
 app.use("/api/v1", api);
 
 app.get("/health", (_req, res) =>

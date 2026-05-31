@@ -4,6 +4,7 @@ import { usersService } from "../services/users.service.js";
 import { reviewsService } from "../services/reviews.service.js";
 import { jsonError, wrapAsync } from "../http/errors.js";
 import { meFavoritesRouter } from "./me-favorites.routes.js";
+import { meTripsRouter } from "./me-trips.routes.js";
 import { parsePagination } from "../http/pagination.js";
 
 export const usersRouter = Router();
@@ -29,6 +30,10 @@ usersRouter.patch(
         res.status(409).json(jsonError(409, "USERNAME_TAKEN"));
         return;
       }
+      if (e instanceof Error && e.message === "EMAIL_TAKEN") {
+        res.status(409).json(jsonError(409, "EMAIL_TAKEN"));
+        return;
+      }
       throw e;
     }
   })
@@ -49,3 +54,4 @@ usersRouter.get(
 );
 
 usersRouter.use("/me/favorites", requireAuth, meFavoritesRouter);
+usersRouter.use("/me/trips", requireAuth, meTripsRouter);

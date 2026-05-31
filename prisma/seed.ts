@@ -835,6 +835,10 @@ async function main() {
   await prisma.reviewLike.deleteMany();
   await prisma.reviewImage.deleteMany();
   await prisma.placeImage.deleteMany();
+  await prisma.tripActivity.deleteMany();
+  await prisma.tripDay.deleteMany();
+  await prisma.tripMember.deleteMany();
+  await prisma.trip.deleteMany();
   await prisma.review.deleteMany();
   await prisma.favorite.deleteMany();
   await prisma.place.deleteMany();
@@ -873,6 +877,7 @@ async function main() {
 
   // ── Places + Images + Reviews ──────────────────────────────────────────────
   const createdPlaces: string[] = [];
+  const createdPlaceCoverImages: string[] = [];
 
   for (let i = 0; i < PLACES_DATA.length; i++) {
     const p = PLACES_DATA[i];
@@ -898,6 +903,7 @@ async function main() {
       },
     });
     createdPlaces.push(place.id);
+    createdPlaceCoverImages.push(place.coverImageUrl);
 
     if (uploadedImages.length > 1) {
       await prisma.placeImage.createMany({
@@ -941,6 +947,305 @@ async function main() {
     })),
   });
 
+  // Trips for GET /api/v1/users/me/trips
+  console.log("Creating sample trips...");
+  const demoUser = travelerUsers[0];
+  const sampleTrip = await prisma.trip.create({
+    data: {
+      userId: demoUser.id,
+      title: "Hành trình di sản Việt Nam",
+      destination: "Quảng Ninh - Quảng Nam - Huế - Hà Giang - Yên Bái",
+      currentHotelName: "Khách sạn Hội An Riverside",
+      currentHotelPlaceId: createdPlaces[1],
+      startDate: new Date("2026-11-12T00:00:00.000Z"),
+      endDate: new Date("2026-11-18T00:00:00.000Z"),
+      totalBudgetPerPerson: 8000000,
+      currency: "VND",
+      members: {
+        create: [
+          { userId: travelerUsers[0].id },
+          { userId: travelerUsers[1].id },
+          { userId: travelerUsers[2].id },
+        ],
+      },
+      days: {
+        create: [
+          {
+            dayNumber: 1,
+            title: "Ngày 1: Khám phá Quảng Ninh và Hội An",
+            date: new Date("2026-11-12T00:00:00.000Z"),
+            estimatedBudget: 625000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[0],
+                  title: PLACES_DATA[0].name,
+                  description: "Điểm tham quan nổi bật được chọn cho lịch trình di sản.",
+                  imageUrl: createdPlaceCoverImages[0],
+                  period: "MORNING",
+                  scheduledTime: "09:00",
+                  estimatedCost: 0,
+                  rating: PLACES_DATA[0].averageRating,
+                  sortOrder: 1,
+                },
+                {
+                  placeId: createdPlaces[1],
+                  title: PLACES_DATA[1].name,
+                  description: "Điểm dạo chơi văn hóa được chọn cho lịch trình di sản.",
+                  imageUrl: createdPlaceCoverImages[1],
+                  period: "AFTERNOON",
+                  scheduledTime: "12:00",
+                  estimatedCost: 625000,
+                  rating: PLACES_DATA[1].averageRating,
+                  sortOrder: 2,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 2,
+            title: "Ngày 2: Cố đô Huế và cao nguyên đá",
+            date: new Date("2026-11-13T00:00:00.000Z"),
+            estimatedBudget: 1750000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[2],
+                  title: PLACES_DATA[2].name,
+                  description: "Điểm đến lịch sử được chọn cho ngày khám phá văn hóa.",
+                  imageUrl: createdPlaceCoverImages[2],
+                  period: "MORNING",
+                  scheduledTime: "08:30",
+                  estimatedCost: 875000,
+                  rating: PLACES_DATA[2].averageRating,
+                  sortOrder: 1,
+                },
+                {
+                  placeId: createdPlaces[3],
+                  title: PLACES_DATA[3].name,
+                  description: "Cung đường cảnh quan được chọn cho lịch trình trải nghiệm.",
+                  imageUrl: createdPlaceCoverImages[3],
+                  period: "AFTERNOON",
+                  scheduledTime: "14:00",
+                  estimatedCost: 875000,
+                  rating: PLACES_DATA[3].averageRating,
+                  sortOrder: 2,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 3,
+            title: "Ngày 3: Mùa vàng vùng cao",
+            date: new Date("2026-11-14T00:00:00.000Z"),
+            estimatedBudget: 750000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[4],
+                  title: PLACES_DATA[4].name,
+                  description: "Điểm ngắm cảnh ruộng bậc thang được chọn cho ngày thư giãn.",
+                  imageUrl: createdPlaceCoverImages[4],
+                  period: "MORNING",
+                  scheduledTime: "08:30",
+                  estimatedCost: 750000,
+                  rating: PLACES_DATA[4].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 4,
+            title: "Ngày 4: Trải nghiệm ẩm thực địa phương",
+            date: new Date("2026-11-15T00:00:00.000Z"),
+            estimatedBudget: 875000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[5],
+                  title: PLACES_DATA[5].name,
+                  description: "Điểm ăn uống được chọn để trải nghiệm hương vị địa phương.",
+                  imageUrl: createdPlaceCoverImages[5],
+                  period: "AFTERNOON",
+                  scheduledTime: "12:30",
+                  estimatedCost: 875000,
+                  rating: PLACES_DATA[5].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 5,
+            title: "Ngày 5: Vùng cao mùa vàng",
+            date: new Date("2026-11-16T00:00:00.000Z"),
+            estimatedBudget: 1000000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[4],
+                  title: PLACES_DATA[4].name,
+                  description: "Điểm ngắm cảnh được chọn cho hành trình vùng cao.",
+                  imageUrl: createdPlaceCoverImages[4],
+                  period: "MORNING",
+                  scheduledTime: "09:30",
+                  estimatedCost: 1000000,
+                  rating: PLACES_DATA[4].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 6,
+            title: "Ngày 6: Điểm hẹn địa phương",
+            date: new Date("2026-11-17T00:00:00.000Z"),
+            estimatedBudget: 750000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[6],
+                  title: PLACES_DATA[6].name,
+                  description: "Điểm đến được yêu thích được chọn cho lịch trình trong ngày.",
+                  imageUrl: createdPlaceCoverImages[6],
+                  period: "AFTERNOON",
+                  scheduledTime: "15:00",
+                  estimatedCost: 750000,
+                  rating: PLACES_DATA[6].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 7,
+            title: "Ngày 7: Kết thúc hành trình",
+            date: new Date("2026-11-18T00:00:00.000Z"),
+            estimatedBudget: 625000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[8],
+                  title: PLACES_DATA[8].name,
+                  description: "Điểm dừng cuối được chọn để khép lại chuyến đi.",
+                  imageUrl: createdPlaceCoverImages[8],
+                  period: "MORNING",
+                  scheduledTime: "09:00",
+                  estimatedCost: 625000,
+                  rating: PLACES_DATA[8].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const weekendTrip = await prisma.trip.create({
+    data: {
+      userId: demoUser.id,
+      title: "Cuối tuần khám phá ẩm thực Việt",
+      destination: "Việt Nam",
+      currentHotelName: "Khách sạn Trung Tâm Boutique",
+      startDate: new Date("2026-12-05T00:00:00.000Z"),
+      endDate: new Date("2026-12-07T00:00:00.000Z"),
+      totalBudgetPerPerson: 4500000,
+      currency: "VND",
+      members: {
+        create: [
+          { userId: travelerUsers[0].id },
+          { userId: travelerUsers[3].id },
+        ],
+      },
+      days: {
+        create: [
+          {
+            dayNumber: 1,
+            title: "Ngày 1: Bữa tối địa phương",
+            date: new Date("2026-12-05T00:00:00.000Z"),
+            estimatedBudget: 1125000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[5],
+                  title: PLACES_DATA[5].name,
+                  description: "Quán ăn địa phương được chọn cho bữa tối đầu tiên.",
+                  imageUrl: createdPlaceCoverImages[5],
+                  period: "EVENING",
+                  scheduledTime: "18:30",
+                  estimatedCost: 1125000,
+                  rating: PLACES_DATA[5].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 2,
+            title: "Ngày 2: Ăn trưa và dạo phố",
+            date: new Date("2026-12-06T00:00:00.000Z"),
+            estimatedBudget: 875000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[7],
+                  title: PLACES_DATA[7].name,
+                  description: "Điểm dừng ẩm thực được chọn cho buổi trưa.",
+                  imageUrl: createdPlaceCoverImages[7],
+                  period: "AFTERNOON",
+                  scheduledTime: "13:00",
+                  estimatedCost: 875000,
+                  rating: PLACES_DATA[7].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+          {
+            dayNumber: 3,
+            title: "Ngày 3: Cà phê và mua quà",
+            date: new Date("2026-12-07T00:00:00.000Z"),
+            estimatedBudget: 700000,
+            isExpanded: true,
+            activities: {
+              create: [
+                {
+                  placeId: createdPlaces[9],
+                  title: PLACES_DATA[9].name,
+                  description: "Điểm dừng nhẹ nhàng được chọn trước khi kết thúc chuyến đi.",
+                  imageUrl: createdPlaceCoverImages[9],
+                  period: "MORNING",
+                  scheduledTime: "10:00",
+                  estimatedCost: 700000,
+                  rating: PLACES_DATA[9].averageRating,
+                  sortOrder: 1,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const tripStats = {
+    trips: 2,
+    days: 10,
+    activities: 12,
+    members: 5,
+  };
   const totalReviews = PLACES_DATA.reduce((a, p) => a + p.reviews.length, 0);
   const attractions  = PLACES_DATA.filter(p => p.category === "ATTRACTIONS").length;
   const dining       = PLACES_DATA.filter(p => p.category === "DINING").length;
@@ -953,6 +1258,8 @@ async function main() {
   console.log(`   ⭐ ${totalReviews} reviews`);
   console.log(`   🎫 5 promotions`);
   console.log(`   ❤️  ${createdPlaces.length * 3} favorites`);
+  console.log(`   trips: ${tripStats.trips} (${sampleTrip.title}, ${weekendTrip.title})`);
+  console.log(`   trip days: ${tripStats.days}, activities: ${tripStats.activities}, members: ${tripStats.members}`);
 }
 
 main()
