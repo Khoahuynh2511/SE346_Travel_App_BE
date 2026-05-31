@@ -2,6 +2,14 @@ import { PlaceCategory } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 
+const placeCategorySchema = z.enum([
+  "ATTRACTIONS",
+  "DINING",
+  "FESTIVALS",
+  "STAYS",
+  "SHOPPING",
+]);
+
 const scheduleSchema = z.object({
   startDate: z.string().min(1),
   endDate: z.string().min(1),
@@ -20,38 +28,26 @@ const promotionBodySchema = z.object({
 const createPlaceSchema = z.object({
   name: z.string().min(1).max(200),
   region: z.string().min(1).max(200),
-  category: z.string().min(1),
+  category: placeCategorySchema,
   about: z.string().default(""),
   coverImageUrl: z.string().url(),
   imageUrls: z.array(z.string().url()).optional(),
   featureLabel: z.string().default("Open Now"),
-  priceLevel: z.number().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  priceLevel: z.number().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
   promotions: z.array(promotionBodySchema).optional(),
 });
 
 const updatePlaceSchema = createPlaceSchema.partial();
 
-const feCategoryMap: Record<string, PlaceCategory> = {
-  restaurant: PlaceCategory.DINING,
-  cafe: PlaceCategory.DINING,
-  hotel: PlaceCategory.ATTRACTIONS,
-  attraction: PlaceCategory.ATTRACTIONS,
-  attractions: PlaceCategory.ATTRACTIONS,
-  dining: PlaceCategory.DINING,
-  festivals: PlaceCategory.FESTIVALS,
-};
-
-function mapFeCategory(input: string): PlaceCategory {
-  const key = input.trim().toLowerCase();
-  return feCategoryMap[key] ?? PlaceCategory.ATTRACTIONS;
-}
-
 function toOwnerPlaceDto(p: {
   id: string;
   name: string;
   region: string;
+  category: PlaceCategory;
+  averageRating: number;
+  featureLabel: string;
   coverImageUrl: string;
   images: { url: string }[];
 }) {
@@ -61,6 +57,36 @@ function toOwnerPlaceDto(p: {
     Location: p.region,
     Image: p.coverImageUrl,
     Images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
+    Rate: p.averageRating,
+    category: p.category,
+    Category: p.category,
+    Features: p.featureLabel,
+  };
+}
+
+function toOwnerPlaceDetailDto(p: {
+  id: string;
+  name: string;
+  region: string;
+  category: PlaceCategory;
+  averageRating: number;
+  featureLabel: string;
+  coverImageUrl: string;
+  about: string;
+  priceLevel: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  images: { url: string }[];
+  promotions: Parameters<typeof toPromotionDto>[0][];
+}) {
+  return {
+    ...toOwnerPlaceDto(p),
+    about: p.about,
+    featureLabel: p.featureLabel,
+    priceLevel: p.priceLevel,
+    latitude: p.latitude,
+    longitude: p.longitude,
+    promotions: p.promotions.map(toPromotionDto),
   };
 }
 
@@ -141,20 +167,7 @@ export const ownerService = {
       },
     });
     if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
-    return {
-      Id: place.id,
-      Name: place.name,
-      Location: place.region,
-      Image: place.coverImageUrl,
-      Images: [place.coverImageUrl, ...place.images.map((img) => img.url)],
-      category: place.category,
-      about: place.about,
-      featureLabel: place.featureLabel,
-      priceLevel: place.priceLevel,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      promotions: place.promotions.map(toPromotionDto),
-    };
+    return toOwnerPlaceDetailDto(place);
   },
 
   async createPlace(ownerId: number, body: unknown) {
@@ -164,7 +177,7 @@ export const ownerService = {
         ownerId,
         name: data.name,
         region: data.region,
-        category: mapFeCategory(data.category),
+        category: data.category as PlaceCategory,
         coverImageUrl: data.coverImageUrl,
         featureLabel: data.featureLabel,
         about: data.about,
@@ -198,7 +211,7 @@ export const ownerService = {
       data: {
         ...(data.name !== undefined ? { name: data.name } : {}),
         ...(data.region !== undefined ? { region: data.region } : {}),
-        ...(data.category !== undefined ? { category: mapFeCategory(data.category) } : {}),
+        ...(data.category !== undefined ? { category: data.category as PlaceCategory } : {}),
         ...(data.coverImageUrl !== undefined ? { coverImageUrl: data.coverImageUrl } : {}),
         ...(data.featureLabel !== undefined ? { featureLabel: data.featureLabel } : {}),
         ...(data.about !== undefined ? { about: data.about } : {}),
@@ -215,6 +228,10 @@ export const ownerService = {
           data: imageUrls.map((url) => ({ placeId, url })),
         });
       }
+    }
+    if (data.promotions !== undefined) {
+      await prisma.promotion.deleteMany({ where: { placeId } });
+      await createPromotionsForPlace(placeId, data.promotions);
     }
     const updated = await prisma.place.findUnique({
       where: { id: placeId },

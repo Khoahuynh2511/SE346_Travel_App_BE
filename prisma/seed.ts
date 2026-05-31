@@ -1247,14 +1247,18 @@ async function main() {
     members: 5,
   };
   const totalReviews = PLACES_DATA.reduce((a, p) => a + p.reviews.length, 0);
-  const attractions  = PLACES_DATA.filter(p => p.category === "ATTRACTIONS").length;
-  const dining       = PLACES_DATA.filter(p => p.category === "DINING").length;
-  const festivals    = PLACES_DATA.filter(p => p.category === "FESTIVALS").length;
+  const countCategory = (category: string) =>
+    PLACES_DATA.filter(p => String(p.category) === category).length;
+  const attractions  = countCategory("ATTRACTIONS");
+  const dining       = countCategory("DINING");
+  const festivals    = countCategory("FESTIVALS");
+  const stays        = countCategory("STAYS");
+  const shopping     = countCategory("SHOPPING");
 
   console.log("\n✅ Seed completed successfully!");
   console.log(`📊 Summary:`);
   console.log(`   👥 ${createdUsers.length} users (${createdUsers.length - 1} travelers + 1 owner)`);
-  console.log(`   🏝️  ${PLACES_DATA.length} places (${attractions} ATTRACTIONS · ${dining} DINING · ${festivals} FESTIVALS)`);
+  console.log(`   🏝️  ${PLACES_DATA.length} places (${attractions} ATTRACTIONS · ${dining} DINING · ${festivals} FESTIVALS · ${stays} STAYS · ${shopping} SHOPPING)`);
   console.log(`   ⭐ ${totalReviews} reviews`);
   console.log(`   🎫 5 promotions`);
   console.log(`   ❤️  ${createdPlaces.length * 3} favorites`);

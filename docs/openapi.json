@@ -426,7 +426,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["attractions", "dining", "festivals"]
+              "enum": ["ATTRACTIONS", "DINING", "FESTIVALS", "STAYS", "SHOPPING"]
             }
           },
           {

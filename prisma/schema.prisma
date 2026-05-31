@@ -12,6 +12,8 @@ enum PlaceCategory {
   ATTRACTIONS
   DINING
   FESTIVALS
+  STAYS
+  SHOPPING
 }
 
 enum UserRole {
