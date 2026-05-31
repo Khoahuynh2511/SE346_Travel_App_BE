@@ -10,13 +10,17 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+function getUploadedFiles(req: Express.Request) {
+  return Array.isArray(req.files) ? req.files : [];
+}
+
 export const uploadsRouter = Router();
 
 uploadsRouter.post(
   "/review-image",
   requireAuth,
   (req, res, next) => {
-    upload.single("file")(req, res, (err: unknown) => {
+    upload.any()(req, res, (err: unknown) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
           res.status(413).json({ ok: false, error: "FILE_TOO_LARGE" });
@@ -29,12 +33,16 @@ uploadsRouter.post(
     });
   },
   wrapAsync(async (req, res) => {
-    if (!req.file) {
-      res.status(400).json({ ok: false, error: "MISSING_FILE" });
+    const file = getUploadedFiles(req)[0];
+    if (!file) {
+      res.status(400).json({
+        ok: false,
+        error: "MISSING_FILE",
+      });
       return;
     }
     try {
-      const data = await storageService.uploadReviewImage(req.user!.sub, req.file);
+      const data = await storageService.uploadReviewImage(req.user!.sub, file);
       res.status(201).json({ ok: true, data });
     } catch (e) {
       if (e instanceof Error) {
@@ -60,7 +68,7 @@ uploadsRouter.post(
   "/review-images",
   requireAuth,
   (req, res, next) => {
-    upload.array("files", 10)(req, res, (err: unknown) => {
+    upload.any()(req, res, (err: unknown) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
           res.status(413).json({ ok: false, error: "FILE_TOO_LARGE" });
@@ -73,9 +81,12 @@ uploadsRouter.post(
     });
   },
   wrapAsync(async (req, res) => {
-    const files = Array.isArray(req.files) ? req.files : [];
+    const files = getUploadedFiles(req);
     if (files.length === 0) {
-      res.status(400).json({ ok: false, error: "MISSING_FILE" });
+      res.status(400).json({
+        ok: false,
+        error: "MISSING_FILE",
+      });
       return;
     }
     try {
@@ -106,7 +117,7 @@ uploadsRouter.post(
   requireAuth,
   requireOwner,
   (req, res, next) => {
-    upload.single("file")(req, res, (err: unknown) => {
+    upload.any()(req, res, (err: unknown) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
           res.status(413).json({ ok: false, error: "FILE_TOO_LARGE" });
@@ -119,12 +130,16 @@ uploadsRouter.post(
     });
   },
   wrapAsync(async (req, res) => {
-    if (!req.file) {
-      res.status(400).json({ ok: false, error: "MISSING_FILE" });
+    const file = getUploadedFiles(req)[0];
+    if (!file) {
+      res.status(400).json({
+        ok: false,
+        error: "MISSING_FILE",
+      });
       return;
     }
     try {
-      const data = await storageService.uploadPlaceCover(req.user!.sub, req.file);
+      const data = await storageService.uploadPlaceCover(req.user!.sub, file);
       res.status(201).json({ ok: true, data: { publicUrl: data.publicUrl } });
     } catch (e) {
       if (e instanceof Error) {

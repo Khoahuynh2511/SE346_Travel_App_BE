@@ -1,25 +1,58 @@
 import { prisma } from "../database/client.js";
+import type { Pagination } from "../http/pagination.js";
+
+function toFavoriteListDto(p: {
+  id: string;
+  name: string;
+  region: string;
+  averageRating: number;
+  ratingCount: number;
+  featureLabel: string;
+  coverImageUrl: string;
+  images: { url: string }[];
+}) {
+  const images = [p.coverImageUrl, ...p.images.map((img) => img.url)];
+  return {
+    id: p.id,
+    name: p.name,
+    region: p.region,
+    averageRating: p.averageRating,
+    ratingCount: p.ratingCount,
+    featureLabel: p.featureLabel,
+    coverImageUrl: p.coverImageUrl,
+    images,
+    Id: p.id,
+    Name: p.name,
+    Located: p.region,
+    Rate: p.averageRating,
+    NumberOfRate: p.ratingCount,
+    Features: p.featureLabel,
+    image: p.coverImageUrl,
+  };
+}
 
 export const favoritesService = {
-  async list(userId: number) {
-    const rows = await prisma.favorite.findMany({
-      where: { userId },
-      include: {
-        place: {
-          include: { images: { orderBy: { createdAt: "asc" } } },
+  async list(userId: number, paging?: Pagination) {
+    const limit = paging?.limit ?? 50;
+    const offset = paging?.offset ?? 0;
+    const [total, rows] = await Promise.all([
+      prisma.favorite.count({ where: { userId } }),
+      prisma.favorite.findMany({
+        where: { userId },
+        include: {
+          place: {
+            include: { images: { orderBy: { createdAt: "asc" } } },
+          },
         },
-      },
-    });
-    return rows.map(({ place: p }) => ({
-      Id: p.id,
-      Name: p.name,
-      Located: p.region,
-      Rate: p.averageRating,
-      NumberOfRate: p.ratingCount,
-      Features: p.featureLabel,
-      image: p.coverImageUrl,
-      images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
-    }));
+        orderBy: { placeId: "asc" },
+        skip: offset,
+        take: limit,
+      }),
+    ]);
+
+    const items = rows.map(({ place }) => toFavoriteListDto(place));
+
+    return { items, total, limit, offset };
   },
 
   async add(userId: number, placeId: string) {
