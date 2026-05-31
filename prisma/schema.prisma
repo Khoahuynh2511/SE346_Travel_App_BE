@@ -140,7 +140,9 @@ model Trip {
   currentHotelPlaceId  String?
   startDate            DateTime
   endDate              DateTime
+  budget               Float        @default(0)
   totalBudgetPerPerson Float        @default(0)
+  coverImageUrl        String?
   currency             String       @default("VND")
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt

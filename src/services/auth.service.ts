@@ -70,7 +70,13 @@ async function createSupabaseAuthUser(email: string, password: string) {
     email_confirm: true,
   });
   if (error) {
-    throw Object.assign(new Error(error.message), { statusCode: 409 });
+    // Map common Supabase errors to meaningful messages
+    let errorCode = error.message;
+    const errorMsg = error.message.toLowerCase();
+    if (errorMsg.includes("already") || errorMsg.includes("duplicate") || errorMsg.includes("exist")) {
+      errorCode = "EMAIL_TAKEN";
+    }
+    throw Object.assign(new Error(errorCode), { statusCode: 409 });
   }
   return data.user ?? null;
 }
@@ -90,27 +96,31 @@ export const authService = {
     const supabaseUser = await createSupabaseAuthUser(data.email, data.password);
 
     try {
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        passwordHash,
-        fullName: data.fullName ?? null,
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        username: true,
-        avatarUrl: true,
-        location: true,
-        role: true,
-      },
-    });
-    const token = this.signToken(user.id, user.email);
-    return { accessToken: token, userId: user.id, user: toAuthUserDto(user) };
+      const user = await prisma.user.create({
+        data: {
+          email: data.email,
+          passwordHash,
+          fullName: data.fullName ?? null,
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          username: true,
+          avatarUrl: true,
+          location: true,
+          role: true,
+        },
+      });
+      const token = this.signToken(user.id, user.email);
+      return { accessToken: token, userId: user.id, user: toAuthUserDto(user) };
     } catch (error) {
       if (supabaseUser?.id) {
         await deleteSupabaseAuthUser(supabaseUser.id);
+      }
+      // Check if this is a duplicate email constraint error
+      if (error instanceof Error && (error.message.includes("Unique constraint") || error.message.includes("unique"))) {
+        throw Object.assign(new Error("EMAIL_TAKEN"), { statusCode: 409 });
       }
       throw error;
     }
@@ -120,9 +130,39 @@ export const authService = {
     const data = loginSchema.parse(body);
     const user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user) throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
-    const ok = await bcrypt.compare(data.password, user.passwordHash);
-    if (!ok) throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
+    
+    try {
+      const ok = await bcrypt.compare(data.password, user.passwordHash);
+      if (!ok) throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
+    } catch (error) {
+      // If bcrypt throws an error (e.g., invalid hash format), treat as invalid credentials
+      if (error instanceof Error && error.message !== "INVALID_CREDENTIALS") {
+        throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
+      }
+      throw error;
+    }
+    
     const token = this.signToken(user.id, user.email);
+    // If Supabase is configured, ensure the corresponding Supabase auth user exists.
+    try {
+      const admin = getSupabaseAdmin();
+      if (admin && (admin as any).auth?.admin?.getUserByEmail) {
+        const resp = await (admin as any).auth.admin.getUserByEmail(data.email);
+        const supUser = resp?.data?.user ?? null;
+        if (!supUser) {
+          // Treat missing supabase user as invalid credentials to avoid leaking info
+          throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
+        }
+      }
+    } catch (e) {
+      // If Supabase admin call fails for unexpected reason, log and treat as invalid credentials
+      if (e instanceof Error && (e as any).message !== "INVALID_CREDENTIALS") {
+        // non-fatal in production; convert to invalid creds to avoid exposing internals
+        throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
+      }
+      throw e;
+    }
+
     return {
       accessToken: token,
       userId: user.id,

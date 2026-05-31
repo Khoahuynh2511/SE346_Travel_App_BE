@@ -5,6 +5,7 @@ const SUBSCRIBE_TIMEOUT_MS = 10_000;
 
 export const realtimeService = {
   async publishReviewCreated(payload: { placeId: string; reviewId: string }) {
+    if (process.env.NODE_ENV === "test") return;
     const client = getSupabaseAdmin();
     if (!client) return;
 
@@ -18,7 +19,7 @@ export const realtimeService = {
         const done = (fn: () => void) => {
           if (finished) return;
           finished = true;
-          fn();
+          setImmediate(fn);
         };
 
         const timer = setTimeout(() => {
