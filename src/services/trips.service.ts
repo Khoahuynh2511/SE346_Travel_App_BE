@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
+import { tripDiaryService } from "./tripDiary.service.js";
 
 const tripActivityPeriods = ["MORNING", "AFTERNOON", "EVENING", "NIGHT"] as const;
 
@@ -145,6 +146,14 @@ export const tripsService = {
     }
 
     return { id: tripId };
+  },
+
+  async listDiaryForUser(userId: number, tripId: string) {
+    return tripDiaryService.listForTrip(userId, tripId);
+  },
+
+  async createDiaryForUser(userId: number, tripId: string, body: unknown) {
+    return tripDiaryService.createForTrip(userId, tripId, body);
   },
 
   async writeTrip(userId: number, tripId: string | null, input: TripInput) {

@@ -68,6 +68,12 @@ export const storageService = {
     return { items };
   },
 
+  async uploadDiaryImage(userId: number, file: Express.Multer.File): Promise<{ path: string; publicUrl: string }> {
+    const bucket = env.supabaseStorageBucket;
+    const objectPath = `diaries/${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(file.mimetype)}`;
+    return uploadFileToBucket(bucket, objectPath, file);
+  },
+
   async uploadPlaceCover(
     userId: number,
     file: Express.Multer.File

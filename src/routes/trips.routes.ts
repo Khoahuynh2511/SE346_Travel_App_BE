@@ -39,6 +39,26 @@ tripsRouter.get(
   })
 );
 
+tripsRouter.get(
+  "/:tripId/diary",
+  requireAuth,
+  wrapAsync(async (req, res) => {
+    const tripId = Array.isArray(req.params.tripId) ? req.params.tripId[0] : req.params.tripId;
+    const data = await tripsService.listDiaryForUser(req.user!.sub, tripId);
+    res.json({ ok: true, data });
+  })
+);
+
+tripsRouter.post(
+  "/:tripId/diary",
+  requireAuth,
+  wrapAsync(async (req, res) => {
+    const tripId = Array.isArray(req.params.tripId) ? req.params.tripId[0] : req.params.tripId;
+    const data = await tripsService.createDiaryForUser(req.user!.sub, tripId, req.body);
+    res.status(201).json({ ok: true, data });
+  })
+);
+
 tripsRouter.put(
   "/:tripId",
   requireAuth,
