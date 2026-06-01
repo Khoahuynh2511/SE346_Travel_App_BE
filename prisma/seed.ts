@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { env } from "../src/config/env.js";
@@ -878,6 +878,7 @@ async function main() {
   // ── Places + Images + Reviews ──────────────────────────────────────────────
   const createdPlaces: string[] = [];
   const createdPlaceCoverImages: string[] = [];
+  const reviewData: Prisma.ReviewCreateManyInput[] = [];
 
   for (let i = 0; i < PLACES_DATA.length; i++) {
     const p = PLACES_DATA[i];
@@ -911,16 +912,14 @@ async function main() {
       });
     }
 
-    for (const rev of p.reviews) {
-      await prisma.review.create({
-        data: {
-          placeId: place.id,
-          userId: travelerUsers[rev.userIdx].id,
-          rating: rev.rating,
-          content: rev.content,
-        },
-      });
-    }
+    reviewData.push(
+      ...p.reviews.map((rev) => ({
+        placeId: place.id,
+        userId: travelerUsers[rev.userIdx].id,
+        rating: rev.rating,
+        content: rev.content,
+      })),
+    );
 
     // First 3 travelers favorite every place
     for (let fi = 0; fi < Math.min(3, travelerUsers.length); fi++) {
@@ -928,6 +927,12 @@ async function main() {
         data: { userId: travelerUsers[fi].id, placeId: place.id },
       });
     }
+  }
+
+  if (reviewData.length > 0) {
+    await prisma.review.createMany({
+      data: reviewData,
+    });
   }
 
   // ── Promotions ─────────────────────────────────────────────────────────────
@@ -950,7 +955,10 @@ async function main() {
   // Trips for GET /api/v1/users/me/trips
   console.log("Creating sample trips...");
   const demoUser = travelerUsers[0];
-  const sampleTrip = await prisma.trip.create({
+  let sampleTrip: Prisma.TripGetPayload<Record<string, never>>;
+
+  try {
+  sampleTrip = await prisma.trip.create({
     data: {
       userId: demoUser.id,
       title: "Hành trình di sản Việt Nam",
@@ -1152,6 +1160,11 @@ async function main() {
       },
     },
   });
+  } catch (error) {
+    console.log("=== Lỗi tạo sampleTrip ===");
+    console.error(error);
+    process.exit(1);
+  }
 
   const weekendTrip = await prisma.trip.create({
     data: {
