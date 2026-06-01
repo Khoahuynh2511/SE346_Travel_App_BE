@@ -104,7 +104,7 @@ Tiền tố: `/api/v1`
 ### Places & Reviews
 | Method | Path | Auth |
 |--------|------|------|
-| GET | `/places?category=attractions\|dining\|festivals` | — |
+| GET | `/places?category=ATTRACTIONS\|DINING\|FESTIVALS\|STAYS\|SHOPPING` | — |
 | GET | `/places/:placeId` | JWT tùy chọn |
 | GET/POST | `/places/:placeId/reviews` | POST cần JWT |
 | PATCH/DELETE | `/reviews/:reviewId` | JWT |

@@ -133,6 +133,61 @@
           "limit": { "type": "integer", "minimum": 1 },
           "offset": { "type": "integer", "minimum": 0 }
         }
+      },
+      "FavoritePlaceListItem": {
+        "type": "object",
+        "required": ["id", "name", "region", "averageRating", "ratingCount", "featureLabel", "coverImageUrl", "images"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "region": { "type": "string" },
+          "averageRating": { "type": "number" },
+          "ratingCount": { "type": "integer" },
+          "featureLabel": { "type": "string" },
+          "coverImageUrl": { "type": "string", "format": "uri" },
+          "images": { "type": "array", "items": { "type": "string", "format": "uri" } },
+          "Id": { "type": "string" },
+          "Name": { "type": "string" },
+          "Located": { "type": "string" },
+          "Rate": { "type": "number" },
+          "NumberOfRate": { "type": "integer" },
+          "Features": { "type": "string" },
+          "image": { "type": "string", "format": "uri" }
+        }
+      },
+      "UploadItem": {
+        "type": "object",
+        "required": ["path", "publicUrl"],
+        "properties": {
+          "path": { "type": "string", "description": "Storage object path" },
+          "publicUrl": { "type": "string", "format": "uri", "description": "Public URL to access the uploaded file" }
+        }
+      },
+      "UploadListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/UploadItem" } }
+            }
+          }
+        }
+      },
+      "UploadSingleResponse": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/UploadItem" }
+        }
+      },
+      "CreateReviewResponse": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": true },
+          "data": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }
+        }
       }
     }
   },
@@ -386,8 +441,26 @@
         "tags": ["Users"],
         "summary": "List saved places",
         "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
+          { "name": "offset", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 0, "default": 0 } }
+        ],
         "responses": {
-          "200": { "description": "OK" },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/FavoritePlaceListItem" } },
+                    "meta": { "$ref": "#/components/schemas/ListMeta" }
+                  }
+                }
+              }
+            }
+          },
           "401": { "description": "Unauthorized" }
         }
       }
@@ -426,7 +499,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["attractions", "dining", "festivals"]
+              "enum": ["ATTRACTIONS", "DINING", "FESTIVALS", "STAYS", "SHOPPING"]
             }
           },
           {
@@ -522,7 +595,12 @@
           }
         },
         "responses": {
-          "201": { "description": "Created" },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/CreateReviewResponse" } }
+            }
+          },
           "401": { "description": "Unauthorized" },
           "404": { "description": "PLACE_NOT_FOUND" }
         }
@@ -643,7 +721,50 @@
           }
         },
         "responses": {
-          "201": { "description": "Uploaded" },
+          "201": {
+            "description": "Uploaded",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/UploadSingleResponse" } }
+            }
+          },
+          "400": { "description": "MISSING_FILE" },
+          "401": { "description": "Unauthorized" },
+          "413": { "description": "FILE_TOO_LARGE" },
+          "415": { "description": "UNSUPPORTED_MEDIA_TYPE" },
+          "503": { "description": "STORAGE_UNAVAILABLE" }
+        }
+      }
+    },
+    "/api/v1/uploads/review-images": {
+      "post": {
+        "tags": ["Uploads"],
+        "summary": "Upload multiple review images (up to 10 files)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["files"],
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" },
+                    "description": "Attach up to 10 image files in this field"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uploaded",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/UploadListResponse" } }
+            }
+          },
           "400": { "description": "MISSING_FILE" },
           "401": { "description": "Unauthorized" },
           "413": { "description": "FILE_TOO_LARGE" },

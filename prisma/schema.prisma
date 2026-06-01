@@ -12,6 +12,8 @@ enum PlaceCategory {
   ATTRACTIONS
   DINING
   FESTIVALS
+  STAYS
+  SHOPPING
 }
 
 enum UserRole {
@@ -42,6 +44,7 @@ model User {
   ownedPlaces  Place[]
   trips        Trip[]
   tripMembers  TripMember[]
+  diaryEntries TripDiaryEntry[]
 }
 
 model Place {
@@ -138,7 +141,9 @@ model Trip {
   currentHotelPlaceId  String?
   startDate            DateTime
   endDate              DateTime
+  budget               Float        @default(0)
   totalBudgetPerPerson Float        @default(0)
+  coverImageUrl        String?
   currency             String       @default("VND")
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
@@ -146,6 +151,7 @@ model Trip {
   currentHotelPlace    Place?       @relation("TripCurrentHotel", fields: [currentHotelPlaceId], references: [id], onDelete: SetNull)
   members              TripMember[]
   days                 TripDay[]
+  diaryEntries         TripDiaryEntry[]
 
   @@index([userId])
   @@index([currentHotelPlaceId])
@@ -199,4 +205,34 @@ model TripActivity {
 
   @@index([tripDayId])
   @@index([placeId])
+}
+
+model TripDiaryEntry {
+  id           String           @id @default(cuid())
+  tripId       String
+  userId       Int
+  title        String
+  content      String
+  locationName String?
+  occurredAt   DateTime
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  trip         Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images       TripDiaryImage[]
+
+  @@index([tripId])
+  @@index([userId])
+  @@index([occurredAt])
+}
+
+model TripDiaryImage {
+  id        String         @id @default(cuid())
+  entryId   String
+  url       String
+  sortOrder Int            @default(0)
+  createdAt DateTime       @default(now())
+  entry     TripDiaryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
 }

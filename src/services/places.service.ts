@@ -1,12 +1,15 @@
 import { PlaceCategory } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
 
-const categoryMap: Record<string, PlaceCategory | undefined> = {
-  attractions: PlaceCategory.ATTRACTIONS,
-  dining: PlaceCategory.DINING,
-  festivals: PlaceCategory.FESTIVALS,
-};
+const placeCategorySchema = z.enum([
+  "ATTRACTIONS",
+  "DINING",
+  "FESTIVALS",
+  "STAYS",
+  "SHOPPING",
+]);
 
 function toListDto(p: {
   id: string;
@@ -16,6 +19,8 @@ function toListDto(p: {
   ratingCount: number;
   featureLabel: string;
   coverImageUrl: string;
+  category: PlaceCategory;
+  priceLevel: number | null;
   images: { url: string }[];
 }) {
   return {
@@ -25,6 +30,9 @@ function toListDto(p: {
     Rate: p.averageRating,
     NumberOfRate: p.ratingCount,
     Features: p.featureLabel,
+    category: p.category,
+    Category: p.category,
+    priceLevel: p.priceLevel,
     image: p.coverImageUrl,
     images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
   };
@@ -40,8 +48,9 @@ function formatReviewDate(d: Date) {
 
 export const placesService = {
   async list(query: Record<string, string | undefined>, paging: Pagination) {
-    const catKey = query.category?.toLowerCase();
-    const category = catKey ? categoryMap[catKey] : undefined;
+    const category = query.category
+      ? (placeCategorySchema.parse(query.category) as PlaceCategory)
+      : undefined;
     const where = category ? { category } : {};
     const [total, list] = await Promise.all([
       prisma.place.count({ where }),
@@ -101,6 +110,8 @@ export const placesService = {
       Image: place.coverImageUrl,
       Images: [place.coverImageUrl, ...place.images.map((img) => img.url)],
       Features: place.featureLabel,
+      category: place.category,
+      Category: place.category,
       about: place.about,
       priceLevel: place.priceLevel,
       Reviews: reviews,
