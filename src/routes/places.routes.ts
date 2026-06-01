@@ -53,6 +53,18 @@ placesRouter.get(
   })
 );
 
+placesRouter.get(
+  "/:placeId/promotions",
+  wrapAsync(async (req, res) => {
+    const data = await placesService.listPromotions(String(req.params.placeId));
+    if (!data) {
+      res.status(404).json({ ok: false, error: "NOT_FOUND" });
+      return;
+    }
+    res.json({ ok: true, data });
+  })
+);
+
 placesRouter.post(
   "/:placeId/reviews",
   requireAuth,

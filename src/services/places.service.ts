@@ -38,6 +38,32 @@ function toListDto(p: {
   };
 }
 
+function toPromotionDto(p: {
+  id: string;
+  title: string;
+  isActive: boolean;
+  startDate: string;
+  endDate: string;
+  days: string[];
+  startTime: string;
+  endTime: string;
+  specificTime: boolean;
+}) {
+  return {
+    id: p.id,
+    title: p.title,
+    isActive: p.isActive,
+    schedule: {
+      startDate: p.startDate,
+      endDate: p.endDate,
+      days: p.days,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      specificTime: p.specificTime,
+    },
+  };
+}
+
 function formatReviewDate(d: Date) {
   return d.toLocaleDateString("en-US", {
     day: "2-digit",
@@ -75,6 +101,10 @@ export const placesService = {
       where: { id: placeId },
       include: {
         images: { orderBy: { createdAt: "asc" } },
+        promotions: {
+          where: { isActive: true },
+          orderBy: { createdAt: "desc" },
+        },
         reviews: {
           include: {
             user: { select: { fullName: true, username: true, avatarUrl: true } },
@@ -114,7 +144,24 @@ export const placesService = {
       Category: place.category,
       about: place.about,
       priceLevel: place.priceLevel,
+      promotions: place.promotions.map(toPromotionDto),
+      Promotions: place.promotions.map(toPromotionDto),
       Reviews: reviews,
     };
+  },
+
+  async listPromotions(placeId: string) {
+    const place = await prisma.place.findUnique({
+      where: { id: placeId },
+      select: { id: true },
+    });
+    if (!place) return null;
+
+    const promotions = await prisma.promotion.findMany({
+      where: { placeId, isActive: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return promotions.map(toPromotionDto);
   },
 };
