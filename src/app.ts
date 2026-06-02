@@ -11,6 +11,8 @@ import { ownerRouter } from "./routes/owner.routes.js";
 import { aiRouter } from "./routes/ai.routes.js";
 import { tripsRouter } from "./routes/trips.routes.js";
 import { tripDiaryRouter } from "./routes/tripDiary.routes.js";
+import { meRouter } from "./routes/me.routes.js";
+import { notificationRouter } from "./routes/notification.routes.js";
 import { supabaseConfigured } from "./integrations/supabaseAdmin.js";
 import { httpErrorMiddleware } from "./http/errors.js";
 import type { NextFunction, Request, Response } from "express";
@@ -43,6 +45,8 @@ api.use("/uploads", uploadsRouter);
 api.use("/owner", ownerRouter);
 api.use("/ai", aiRouter);
 api.use("/trips", tripsRouter);
+api.use("/me", meRouter);
+api.use("/notifications", notificationRouter);
 api.use("/trip-diaries", tripDiaryRouter);
 app.use("/api/v1", api);
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { jsonError, wrapAsync } from "../http/errors.js";
 import { requireAuth } from "../middleware/auth.js";
+import { tripMemberRouter } from "./tripMember.router.js";
 import { tripsService } from "../services/trips.service.js";
 
 export const tripsRouter = Router();
@@ -88,3 +89,5 @@ tripsRouter.delete(
     res.json({ ok: true });
   })
 );
+
+tripsRouter.use(tripMemberRouter);

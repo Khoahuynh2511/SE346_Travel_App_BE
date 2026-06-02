@@ -1,3 +1,4 @@
+import { PlaceCategory } from "@prisma/client";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
 
@@ -9,6 +10,11 @@ function toFavoriteListDto(p: {
   ratingCount: number;
   featureLabel: string;
   coverImageUrl: string;
+  category: PlaceCategory;
+  about: string;
+  priceLevel: number | null;
+  latitude: number | null;
+  longitude: number | null;
   images: { url: string }[];
 }) {
   const images = [p.coverImageUrl, ...p.images.map((img) => img.url)];
@@ -20,14 +26,23 @@ function toFavoriteListDto(p: {
     ratingCount: p.ratingCount,
     featureLabel: p.featureLabel,
     coverImageUrl: p.coverImageUrl,
+    category: p.category,
+    about: p.about,
+    priceLevel: p.priceLevel,
+    latitude: p.latitude,
+    longitude: p.longitude,
     images,
     Id: p.id,
     Name: p.name,
     Located: p.region,
+    Location: p.region,
     Rate: p.averageRating,
     NumberOfRate: p.ratingCount,
     Features: p.featureLabel,
+    Category: p.category,
     image: p.coverImageUrl,
+    Image: p.coverImageUrl,
+    Images: images,
   };
 }
 

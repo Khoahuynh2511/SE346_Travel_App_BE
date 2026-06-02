@@ -16,6 +16,8 @@ describe("Trips integration", () => {
   let token = "";
   let userId = 0;
   let collaboratorId = 0;
+  let inviteeId = 0;
+  let inviteeToken = "";
   let hotelPlaceId = "";
   let activityPlaceId = "";
   let tripId = "";
@@ -44,6 +46,16 @@ describe("Trips integration", () => {
       },
     });
     collaboratorId = collaborator.id;
+
+    const invitee = await prisma.user.create({
+      data: {
+        email: `trip-invitee-${Date.now()}@example.com`,
+        passwordHash: await bcrypt.hash(password, 10),
+        fullName: "Trip Invitee",
+      },
+    });
+    inviteeId = invitee.id;
+    inviteeToken = authService.signToken(invitee.id, invitee.email);
 
     const hotelPlace = await prisma.place.create({
       data: {
@@ -80,6 +92,9 @@ describe("Trips integration", () => {
     }
     if (collaboratorId > 0) {
       await prisma.user.deleteMany({ where: { id: collaboratorId } });
+    }
+    if (inviteeId > 0) {
+      await prisma.user.deleteMany({ where: { id: inviteeId } });
     }
     if (userId > 0) {
       await prisma.user.deleteMany({ where: { id: userId } });
@@ -279,6 +294,103 @@ describe("Trips integration", () => {
       estimatedCost: 1200000,
     });
 
+    const inviteResponse = await request(app)
+      .post(`/api/v1/trips/${tripId}/members/invite`)
+      .set(authHeader(token))
+      .send({ userId: inviteeId });
+
+    expect(inviteResponse.status).toBe(201);
+    expect(inviteResponse.body.data).toMatchObject({
+      tripId,
+      userId: inviteeId,
+      invitedById: userId,
+      status: "PENDING",
+      notification: {
+        type: "invited",
+        targetId: tripId,
+        username: "Trip Tester",
+        itineraryName: "Da Lat Autumn Trip",
+        days: 4,
+        unread: true,
+      },
+    });
+
+    const notificationsResponse = await request(app)
+      .get("/api/v1/notifications")
+      .set(authHeader(inviteeToken));
+
+    expect(notificationsResponse.status).toBe(200);
+    expect(notificationsResponse.body.data[0]).toMatchObject({
+      type: "invited",
+      targetId: tripId,
+      username: "Trip Tester",
+      itineraryName: "Da Lat Autumn Trip",
+      days: 4,
+      unread: true,
+    });
+
+    const invitationsBeforeUninvite = await request(app)
+      .get("/api/v1/me/trip-invitations")
+      .set(authHeader(inviteeToken));
+
+    expect(invitationsBeforeUninvite.status).toBe(200);
+    expect(invitationsBeforeUninvite.body.data).toHaveLength(1);
+    expect(invitationsBeforeUninvite.body.data[0]).toMatchObject({
+      tripId,
+      userId: inviteeId,
+      status: "PENDING",
+    });
+
+    const pendingTripDetailResponse = await request(app)
+      .get(`/api/v1/trips/${tripId}`)
+      .set(authHeader(inviteeToken));
+
+    expect(pendingTripDetailResponse.status).toBe(200);
+    expect(pendingTripDetailResponse.body.ok).toBe(true);
+    expect(pendingTripDetailResponse.body.data).toMatchObject({
+      id: tripId,
+      title: "Da Lat Autumn Trip",
+      duration: 4,
+    });
+    expect(pendingTripDetailResponse.body.data.itineraryData).toHaveLength(4);
+
+    const pendingUpdateResponse = await request(app)
+      .patch(`/api/v1/trips/${tripId}`)
+      .set(authHeader(inviteeToken))
+      .send(updatePayload);
+
+    expect(pendingUpdateResponse.status).toBe(403);
+
+    const pendingDeleteResponse = await request(app)
+      .delete(`/api/v1/trips/${tripId}`)
+      .set(authHeader(inviteeToken));
+
+    expect(pendingDeleteResponse.status).toBe(404);
+
+    const uninviteResponse = await request(app)
+      .delete(`/api/v1/trips/${tripId}/invitations/${inviteeId}`)
+      .set(authHeader(token));
+
+    expect(uninviteResponse.status).toBe(200);
+    expect(uninviteResponse.body).toEqual({ ok: true });
+
+    const invitationsAfterUninvite = await request(app)
+      .get("/api/v1/me/trip-invitations")
+      .set(authHeader(inviteeToken));
+
+    expect(invitationsAfterUninvite.status).toBe(200);
+    expect(invitationsAfterUninvite.body.data).toHaveLength(0);
+
+    const removedInvitation = await prisma.tripMember.findUnique({
+      where: { tripId_userId: { tripId, userId: inviteeId } },
+    });
+    expect(removedInvitation).toMatchObject({
+      tripId,
+      userId: inviteeId,
+      status: "REMOVED",
+    });
+    expect(removedInvitation?.removedAt).toBeTruthy();
+
     const dbTrip = await prisma.trip.findUnique({
       where: { id: tripId },
       include: {
@@ -299,7 +411,8 @@ describe("Trips integration", () => {
       coverImageUrl: "https://example.com/custom-trip-cover.jpg",
       currency: "VND",
     });
-    expect(dbTrip?.members).toHaveLength(2);
+    expect(dbTrip?.members.filter((member) => member.status === "ACTIVE")).toHaveLength(2);
+    expect(dbTrip?.members.filter((member) => member.status === "REMOVED")).toHaveLength(1);
     expect(dbTrip?.days).toHaveLength(4);
     expect(dbTrip?.days[0].activities).toHaveLength(1);
     expect(dbTrip?.days[0].activities[0]).toMatchObject({

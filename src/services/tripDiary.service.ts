@@ -39,7 +39,7 @@ type DiaryEntryWithDetails = Prisma.TripDiaryEntryGetPayload<{
 
 export const tripDiaryService = {
   async listForTrip(userId: number, tripId: string) {
-    await assertTripOwner(userId, tripId);
+    await assertCanEditTrip(userId, tripId);
 
     const entries = await prisma.tripDiaryEntry.findMany({
       where: { tripId, userId },
@@ -51,7 +51,7 @@ export const tripDiaryService = {
   },
 
   async createForTrip(userId: number, tripId: string, body: unknown) {
-    await assertTripOwner(userId, tripId);
+    await assertCanEditTrip(userId, tripId);
     const input = diaryEntrySchema.parse(body);
 
     const entry = await prisma.tripDiaryEntry.create({
@@ -141,14 +141,30 @@ export const tripDiaryService = {
   },
 };
 
-async function assertTripOwner(userId: number, tripId: string) {
+async function assertCanEditTrip(userId: number, tripId: string) {
   const trip = await prisma.trip.findFirst({
-    where: { id: tripId, userId },
+    where: {
+      id: tripId,
+      OR: [
+        { userId },
+        {
+          members: {
+            some: {
+              userId,
+              status: "ACTIVE",
+            },
+          },
+        },
+      ],
+    },
     select: { id: true },
   });
 
   if (!trip) {
-    throw Object.assign(new Error("TRIP_NOT_FOUND"), { statusCode: 404 });
+    const exists = await prisma.trip.findUnique({ where: { id: tripId }, select: { id: true } });
+    throw Object.assign(new Error(exists ? "FORBIDDEN" : "TRIP_NOT_FOUND"), {
+      statusCode: exists ? 403 : 404,
+    });
   }
 }
 

@@ -1,6 +1,7 @@
 import { PlaceCategory } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
+import { notificationService } from "./notification.service.js";
 
 const placeCategorySchema = z.enum([
   "ATTRACTIONS",
@@ -21,6 +22,7 @@ const scheduleSchema = z.object({
 
 const promotionBodySchema = z.object({
   title: z.string().min(1).max(200),
+  discount: z.coerce.number().nonnegative().optional(),
   isActive: z.boolean().optional(),
   schedule: scheduleSchema,
 });
@@ -271,6 +273,14 @@ export const ownerService = {
         specificTime: data.schedule.specificTime,
       },
     });
+    await createNotificationSideEffect(() =>
+      notificationService.createPromotionNotification({
+        ownerId,
+        placeId,
+        promotionId: promo.id,
+        discount: data.discount ?? extractDiscount(data.title),
+      })
+    );
     return toPromotionDto(promo);
   },
 
@@ -330,3 +340,16 @@ export const ownerService = {
     return toPromotionDto(updated);
   },
 };
+
+function extractDiscount(title: string) {
+  const match = title.match(/(\d+(?:\.\d+)?)/);
+  return match ? Number(match[1]) : 0;
+}
+
+async function createNotificationSideEffect<T>(factory: () => Promise<T>) {
+  try {
+    return await factory();
+  } catch {
+    return null;
+  }
+}

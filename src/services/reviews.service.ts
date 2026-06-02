@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
+import { notificationService } from "./notification.service.js";
 import { realtimeService } from "./realtime.service.js";
 
 async function recalcPlaceStats(placeId: string) {
@@ -178,6 +179,12 @@ export const reviewsService = {
       return { liked: false, likes: count };
     }
     await prisma.reviewLike.create({ data: { reviewId, userId } });
+    await createNotificationSideEffect(() =>
+      notificationService.createReviewLikeNotification({
+        actorId: userId,
+        reviewId,
+      })
+    );
     const count = await prisma.reviewLike.count({ where: { reviewId } });
     return { liked: true, likes: count };
   },
@@ -222,3 +229,11 @@ export const reviewsService = {
     await recalcPlaceStats(placeId);
   },
 };
+
+async function createNotificationSideEffect<T>(factory: () => Promise<T>) {
+  try {
+    return await factory();
+  } catch {
+    return null;
+  }
+}

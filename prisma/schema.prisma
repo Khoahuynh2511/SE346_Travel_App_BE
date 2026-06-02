@@ -28,6 +28,21 @@ enum TripActivityPeriod {
   NIGHT
 }
 
+enum TripMemberStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  LEFT
+  REMOVED
+}
+
+enum NotificationType {
+  invited
+  upcoming
+  promotion
+  like_comment
+}
+
 model User {
   id           Int          @id @default(autoincrement())
   email        String       @unique
@@ -44,7 +59,10 @@ model User {
   ownedPlaces  Place[]
   trips        Trip[]
   tripMembers  TripMember[]
+  tripInvites  TripMember[]    @relation("TripMemberInviter")
   diaryEntries TripDiaryEntry[]
+  actedNotifications Notification[] @relation("NotificationActor")
+  notificationRecipients NotificationRecipient[]
 }
 
 model Place {
@@ -158,18 +176,60 @@ model Trip {
 }
 
 model TripMember {
-  id        String   @id @default(cuid())
-  tripId    String
-  userId    Int?
-  name      String?
-  avatarUrl String?
-  createdAt DateTime @default(now())
-  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id               String           @id @default(cuid())
+  tripId           String
+  userId           Int?
+  invitedById      Int?
+  name             String?
+  avatarUrl        String?
+  status           TripMemberStatus @default(PENDING)
+  joinedAt         DateTime?
+  leftAt           DateTime?
+  inviteAcceptedAt DateTime?
+  inviteRejectedAt DateTime?
+  removedAt        DateTime?
+  createdAt        DateTime         @default(now())
+  trip             Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invitedBy        User?            @relation("TripMemberInviter", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@unique([tripId, userId])
   @@index([tripId])
   @@index([userId])
+  @@index([invitedById])
+  @@index([status])
+}
+
+model Notification {
+  id         String                  @id @default(cuid())
+  type       NotificationType
+  actorId    Int?
+  targetId   String?
+  title      String?
+  body       String?
+  data       Json?
+  createdAt  DateTime                @default(now())
+  actor      User?                    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  recipients NotificationRecipient[]
+
+  @@index([type])
+  @@index([targetId])
+  @@index([createdAt])
+}
+
+model NotificationRecipient {
+  id             String       @id @default(cuid())
+  notificationId String
+  userId         Int
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }
 
 model TripDay {

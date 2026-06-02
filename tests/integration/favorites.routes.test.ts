@@ -131,15 +131,27 @@ describe("Favorites integration", () => {
       ratingCount: 0,
       featureLabel: "Feature A",
       coverImageUrl: "https://example.com/place-1-cover.jpg",
+      category: "ATTRACTIONS",
+      about: "Favorite Place One test place",
+      priceLevel: null,
+      latitude: null,
+      longitude: null,
       Id: firstPlaceId,
       Name: firstPlaceName,
       Located: "Test Region A",
+      Location: "Test Region A",
       Rate: 0,
       NumberOfRate: 0,
       Features: "Feature A",
+      Category: "ATTRACTIONS",
       image: "https://example.com/place-1-cover.jpg",
+      Image: "https://example.com/place-1-cover.jpg",
     });
     expect(item.images).toEqual([
+      "https://example.com/place-1-cover.jpg",
+      "https://example.com/place-1-1.jpg",
+    ]);
+    expect(item.Images).toEqual([
       "https://example.com/place-1-cover.jpg",
       "https://example.com/place-1-1.jpg",
     ]);

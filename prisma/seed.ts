@@ -835,6 +835,8 @@ async function main() {
   await prisma.reviewLike.deleteMany();
   await prisma.reviewImage.deleteMany();
   await prisma.placeImage.deleteMany();
+  await prisma.notificationRecipient.deleteMany();
+  await prisma.notification.deleteMany();
   await prisma.tripActivity.deleteMany();
   await prisma.tripDay.deleteMany();
   await prisma.tripMember.deleteMany();
@@ -973,9 +975,9 @@ async function main() {
       currency: "VND",
       members: {
         create: [
-          { userId: travelerUsers[0].id },
-          { userId: travelerUsers[1].id },
-          { userId: travelerUsers[2].id },
+          { userId: travelerUsers[0].id, status: "ACTIVE", joinedAt: new Date("2026-11-12T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-11-12T00:00:00.000Z") },
+          { userId: travelerUsers[1].id, status: "ACTIVE", joinedAt: new Date("2026-11-12T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-11-12T00:00:00.000Z") },
+          { userId: travelerUsers[2].id, status: "ACTIVE", joinedAt: new Date("2026-11-12T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-11-12T00:00:00.000Z") },
         ],
       },
       days: {
@@ -1180,8 +1182,8 @@ async function main() {
       currency: "VND",
       members: {
         create: [
-          { userId: travelerUsers[0].id },
-          { userId: travelerUsers[3].id },
+          { userId: travelerUsers[0].id, status: "ACTIVE", joinedAt: new Date("2026-12-05T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-12-05T00:00:00.000Z") },
+          { userId: travelerUsers[3].id, status: "ACTIVE", joinedAt: new Date("2026-12-05T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-12-05T00:00:00.000Z") },
         ],
       },
       days: {
@@ -1257,11 +1259,180 @@ async function main() {
     },
   });
 
+  console.log("Creating sample notifications...");
+  const notificationData: Prisma.NotificationCreateInput[] = [
+    {
+      type: "invited",
+      actor: { connect: { id: travelerUsers[3].id } },
+      targetId: weekendTrip.id,
+      title: "Trip invitation",
+      body: "You have been invited to a trip.",
+      data: {
+        tripId: weekendTrip.id,
+        username: travelerUsers[3].fullName ?? travelerUsers[3].username ?? travelerUsers[3].email,
+        itineraryName: weekendTrip.title,
+        days: 3,
+      },
+      createdAt: new Date("2026-11-28T03:30:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: false,
+          createdAt: new Date("2026-11-28T03:30:00.000Z"),
+        },
+      },
+    },
+    {
+      type: "like_comment",
+      actor: { connect: { id: ownerUser.id } },
+      targetId: createdPlaces[0],
+      title: "Review liked",
+      body: "Someone liked your review.",
+      data: {
+        placeName: PLACES_DATA[0].name,
+      },
+      createdAt: new Date("2026-11-25T09:15:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: false,
+          createdAt: new Date("2026-11-25T09:15:00.000Z"),
+        },
+      },
+    },
+    {
+      type: "upcoming",
+      targetId: sampleTrip.id,
+      title: "Upcoming trip",
+      body: "Your trip is coming up.",
+      data: {
+        itineraryName: sampleTrip.title,
+        days: 7,
+      },
+      createdAt: new Date("2026-11-10T01:00:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: true,
+          readAt: new Date("2026-11-10T01:00:00.000Z"),
+          createdAt: new Date("2026-11-10T01:00:00.000Z"),
+        },
+      },
+    },
+    {
+      type: "promotion",
+      actor: { connect: { id: ownerUser.id } },
+      targetId: createdPlaces[1],
+      title: "New promotion near your trip",
+      body: "A place in your itinerary has a new travel deal.",
+      data: {
+        placeId: createdPlaces[1],
+        placeName: PLACES_DATA[1].name,
+        discountLabel: "Save 20% on guided tours",
+      },
+      createdAt: new Date("2026-11-09T08:20:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: false,
+          createdAt: new Date("2026-11-09T08:20:00.000Z"),
+        },
+      },
+    },
+    {
+      type: "invited",
+      actor: { connect: { id: travelerUsers[4].id } },
+      targetId: sampleTrip.id,
+      title: "Trip member request",
+      body: "A traveler wants to join your trip.",
+      data: {
+        tripId: sampleTrip.id,
+        username: travelerUsers[4].fullName ?? travelerUsers[4].username ?? travelerUsers[4].email,
+        itineraryName: sampleTrip.title,
+        days: 7,
+      },
+      createdAt: new Date("2026-11-08T14:45:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: true,
+          readAt: new Date("2026-11-08T15:05:00.000Z"),
+          createdAt: new Date("2026-11-08T14:45:00.000Z"),
+        },
+      },
+    },
+    {
+      type: "like_comment",
+      actor: { connect: { id: travelerUsers[2].id } },
+      targetId: createdPlaces[2],
+      title: "New comment on your review",
+      body: "Someone replied to your review.",
+      data: {
+        placeId: createdPlaces[2],
+        placeName: PLACES_DATA[2].name,
+        commentPreview: "Thanks for the tip, this helped my plan.",
+      },
+      createdAt: new Date("2026-11-07T11:10:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: false,
+          createdAt: new Date("2026-11-07T11:10:00.000Z"),
+        },
+      },
+    },
+    {
+      type: "upcoming",
+      targetId: weekendTrip.id,
+      title: "Hotel reminder",
+      body: "Review your hotel details before the weekend trip.",
+      data: {
+        tripId: weekendTrip.id,
+        itineraryName: weekendTrip.title,
+        hotelName: weekendTrip.currentHotelName,
+        days: 5,
+      },
+      createdAt: new Date("2026-11-06T02:00:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: true,
+          readAt: new Date("2026-11-06T02:30:00.000Z"),
+          createdAt: new Date("2026-11-06T02:00:00.000Z"),
+        },
+      },
+    },
+    {
+      type: "promotion",
+      actor: { connect: { id: ownerUser.id } },
+      targetId: createdPlaces[5],
+      title: "Dining deal available",
+      body: "A dining spot you saved has a limited-time offer.",
+      data: {
+        placeId: createdPlaces[5],
+        placeName: PLACES_DATA[5].name,
+        discountLabel: "Weekend combo for two",
+      },
+      createdAt: new Date("2026-11-05T10:00:00.000Z"),
+      recipients: {
+        create: {
+          userId: demoUser.id,
+          isRead: false,
+          createdAt: new Date("2026-11-05T10:00:00.000Z"),
+        },
+      },
+    },
+  ];
+  for (const notification of notificationData) {
+    await prisma.notification.create({ data: notification });
+  }
+
   const tripStats = {
     trips: 2,
     days: 10,
     activities: 12,
     members: 5,
+    notifications: notificationData.length,
   };
   const totalReviews = PLACES_DATA.reduce((a, p) => a + p.reviews.length, 0);
   const countCategory = (category: string) =>
@@ -1281,6 +1452,7 @@ async function main() {
   console.log(`   ❤️  ${createdPlaces.length * 3} favorites`);
   console.log(`   trips: ${tripStats.trips} (${sampleTrip.title}, ${weekendTrip.title})`);
   console.log(`   trip days: ${tripStats.days}, activities: ${tripStats.activities}, members: ${tripStats.members}`);
+  console.log(`   notifications: ${tripStats.notifications} for ${demoUser.email}`);
 }
 
 main()

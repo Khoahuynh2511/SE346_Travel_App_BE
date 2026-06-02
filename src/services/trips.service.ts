@@ -1,9 +1,11 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, TripMemberStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import { tripDiaryService } from "./tripDiary.service.js";
 
 const tripActivityPeriods = ["MORNING", "AFTERNOON", "EVENING", "NIGHT"] as const;
+const activeMemberStatus = "ACTIVE" as const;
+const viewableMemberStatuses: TripMemberStatus[] = ["ACTIVE", "PENDING"];
 
 const tripMemberSchema = z
   .object({
@@ -66,6 +68,7 @@ const tripInclude = Prisma.validator<Prisma.TripInclude>()({
     },
   },
   members: {
+    where: { status: activeMemberStatus },
     orderBy: { createdAt: "asc" },
     include: {
       user: {
@@ -103,7 +106,19 @@ const tripInclude = Prisma.validator<Prisma.TripInclude>()({
 export const tripsService = {
   async listForUser(userId: number) {
     const trips = await prisma.trip.findMany({
-      where: { userId },
+      where: {
+        OR: [
+          { userId },
+          {
+            members: {
+              some: {
+                userId,
+                status: activeMemberStatus,
+              },
+            },
+          },
+        ],
+      },
       orderBy: { startDate: "asc" },
       include: tripInclude,
     });
@@ -115,7 +130,17 @@ export const tripsService = {
     const trip = await prisma.trip.findFirst({
       where: {
         id: tripId,
-        userId,
+        OR: [
+          { userId },
+          {
+            members: {
+              some: {
+                userId,
+                status: { in: viewableMemberStatuses },
+              },
+            },
+          },
+        ],
       },
       include: tripInclude,
     });
@@ -162,17 +187,17 @@ export const tripsService = {
     }
 
     const existingTrip = tripId
-      ? await prisma.trip.findFirst({
-          where: {
-            id: tripId,
-            userId,
-          },
+      ? await prisma.trip.findUnique({
+          where: { id: tripId },
           include: tripInclude,
         })
       : null;
 
     if (tripId && !existingTrip) {
       throw Object.assign(new Error("TRIP_NOT_FOUND"), { statusCode: 404 });
+    }
+    if (tripId) {
+      await assertCanEditTrip(userId, tripId);
     }
 
     const hotelPlace = input.hotelPlaceId
@@ -276,20 +301,7 @@ export const tripsService = {
           },
         });
 
-    await prisma.tripMember.deleteMany({ where: { tripId: savedTrip.id } });
-    if (normalizedMembers.length > 0) {
-      await prisma.tripMember.createMany({
-        data: normalizedMembers.map((member) => {
-          const existingUser = member.userId ? userById.get(member.userId) : null;
-          return {
-            tripId: savedTrip.id,
-            userId: member.userId ?? null,
-            name: member.name ?? existingUser?.fullName ?? existingUser?.username ?? null,
-            avatarUrl: member.avatarUrl ?? existingUser?.avatarUrl ?? null,
-          };
-        }),
-      });
-    }
+    await syncTripMembers(savedTrip.id, normalizedMembers, userById);
 
     const existingDaysById = new Map(existingTrip?.days.map((day) => [day.id, day]) ?? []);
     const keptDayIds = new Set<string>();
@@ -383,7 +395,7 @@ export const tripsService = {
   },
 };
 
-type TripWithDetails = Prisma.TripGetPayload<{ include: typeof tripInclude }>;
+export type TripWithDetails = Prisma.TripGetPayload<{ include: typeof tripInclude }>;
 type TripDayWithActivities = TripWithDetails["days"][number];
 type TripActivityWithPlace = TripDayWithActivities["activities"][number];
 type TripInput = z.infer<typeof tripWriteSchema>;
@@ -558,13 +570,139 @@ function dedupeMembers(members: TripInput["members"]) {
   return result;
 }
 
-function mapTrip(trip: TripWithDetails) {
+async function syncTripMembers(
+  tripId: string,
+  members: TripInput["members"],
+  userById: Map<number, { id: number; fullName: string | null; username: string | null; avatarUrl: string | null }>
+) {
+  const now = new Date();
+  const registeredUserIds = members
+    .map((member) => member.userId)
+    .filter((memberUserId): memberUserId is number => memberUserId !== undefined);
+  const guestMembers = members.filter((member) => member.userId === undefined);
+  const desiredGuestKeys = new Set(
+    guestMembers.map((member) => `guest:${member.name ?? ""}:${member.avatarUrl ?? ""}`)
+  );
+
+  await prisma.tripMember.updateMany({
+    where: {
+      tripId,
+      status: activeMemberStatus,
+      userId:
+        registeredUserIds.length > 0
+          ? { notIn: registeredUserIds }
+          : { not: null },
+    },
+    data: {
+      status: "REMOVED",
+      removedAt: now,
+    },
+  });
+
+  const activeGuests = await prisma.tripMember.findMany({
+    where: {
+      tripId,
+      userId: null,
+      status: activeMemberStatus,
+    },
+  });
+  const activeGuestByKey = new Map(
+    activeGuests.map((member) => [`guest:${member.name ?? ""}:${member.avatarUrl ?? ""}`, member])
+  );
+  const staleGuestIds = activeGuests
+    .filter((member) => !desiredGuestKeys.has(`guest:${member.name ?? ""}:${member.avatarUrl ?? ""}`))
+    .map((member) => member.id);
+  if (staleGuestIds.length > 0) {
+    await prisma.tripMember.updateMany({
+      where: { id: { in: staleGuestIds } },
+      data: {
+        status: "REMOVED",
+        removedAt: now,
+      },
+    });
+  }
+
+  for (const member of members) {
+    const existingUser = member.userId ? userById.get(member.userId) : null;
+    const memberData = {
+      name: member.name ?? existingUser?.fullName ?? existingUser?.username ?? null,
+      avatarUrl: member.avatarUrl ?? existingUser?.avatarUrl ?? null,
+      status: activeMemberStatus,
+      joinedAt: now,
+      leftAt: null,
+      inviteAcceptedAt: now,
+      inviteRejectedAt: null,
+      removedAt: null,
+    };
+
+    if (member.userId) {
+      await prisma.tripMember.upsert({
+        where: { tripId_userId: { tripId, userId: member.userId } },
+        create: {
+          tripId,
+          userId: member.userId,
+          ...memberData,
+        },
+        update: memberData,
+      });
+      continue;
+    }
+
+    const guestKey = `guest:${member.name ?? ""}:${member.avatarUrl ?? ""}`;
+    const existingGuest = activeGuestByKey.get(guestKey);
+    if (existingGuest) {
+      await prisma.tripMember.update({
+        where: { id: existingGuest.id },
+        data: memberData,
+      });
+      continue;
+    }
+
+    await prisma.tripMember.create({
+      data: {
+        tripId,
+        userId: null,
+        ...memberData,
+      },
+    });
+  }
+}
+
+async function assertCanEditTrip(userId: number, tripId: string) {
+  const trip = await prisma.trip.findFirst({
+    where: {
+      id: tripId,
+      OR: [
+        { userId },
+        {
+          members: {
+            some: {
+              userId,
+              status: activeMemberStatus,
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (!trip) {
+    const exists = await prisma.trip.findUnique({ where: { id: tripId }, select: { id: true } });
+    throw Object.assign(new Error(exists ? "FORBIDDEN" : "TRIP_NOT_FOUND"), {
+      statusCode: exists ? 403 : 404,
+    });
+  }
+}
+
+export function mapTrip(trip: TripWithDetails) {
   const collaborators = trip.members.map((member) => ({
     id: member.id,
     userId: member.userId,
     email: member.user?.email ?? null,
     name: member.user?.fullName ?? member.user?.username ?? member.name ?? null,
     avatarUrl: member.user?.avatarUrl ?? member.avatarUrl ?? null,
+    status: member.status,
     isRegisteredUser: Boolean(member.userId),
   }));
   const itineraryData = trip.days.map((day) => mapDay(day, trip.title));
