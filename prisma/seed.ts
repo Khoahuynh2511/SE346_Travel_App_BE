@@ -98,6 +98,7 @@ const USERS_DATA = [
   { email: "nam.bui@example.com",      fullName: "Bùi Thanh Nam",     username: "nam_explorer",      location: "Hà Giang, Việt Nam",      avatarUrl: "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&h=150&fit=crop&crop=face", role: "TRAVELER" as const },
   { email: "thu.hoang@example.com",    fullName: "Hoàng Minh Thu",   username: "thu_adventurer",    location: "Đà Lạt, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face", role: "TRAVELER" as const },
   { email: "owner@example.com",        fullName: "Owner Demo",        username: "owner_demo",        location: "Hà Nội, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&crop=face", role: "OWNER"    as const },
+  { email: "admin@example.com",        fullName: "Admin Demo",        username: "admin_demo",        location: "Hà Nội, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&crop=face", role: "ADMIN"    as const },
 ];
 
 // ─── PLACES ───────────────────────────────────────────────────────────────────
@@ -1274,7 +1275,7 @@ async function main() {
 
   console.log("\n✅ Seed completed successfully!");
   console.log(`📊 Summary:`);
-  console.log(`   👥 ${createdUsers.length} users (${createdUsers.length - 1} travelers + 1 owner)`);
+  console.log(`   👥 ${createdUsers.length} users (${travelerUsers.length} travelers + 1 owner + 1 admin)`);
   console.log(`   🏝️  ${PLACES_DATA.length} places (${attractions} ATTRACTIONS · ${dining} DINING · ${festivals} FESTIVALS · ${stays} STAYS · ${shopping} SHOPPING)`);
   console.log(`   ⭐ ${totalReviews} reviews`);
   console.log(`   🎫 5 promotions`);
