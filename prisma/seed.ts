@@ -113,7 +113,7 @@ const PLACES_DATA = [
     region: "Quảng Ninh, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Kỳ quan thế giới",
-    averageRating: 4.9, ratingCount: 3200, priceLevel: 150,
+    averageRating: 4.9, ratingCount: 3200, priceLevel: 150000,
     latitude: 20.9101, longitude: 107.1839,
     about: "Vịnh Hạ Long là một trong những kỳ quan thiên nhiên thế giới, nổi tiếng với hàng nghìn đảo đá vôi nhô lên giữa làn nước xanh ngọc bích. Đây là điểm đến không thể bỏ qua khi đến Việt Nam.",
     // Long Nguyễn – large body of water surrounded by mountains, Halong Bay (Unsplash)
@@ -140,7 +140,7 @@ const PLACES_DATA = [
     region: "Quảng Nam, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Di sản UNESCO",
-    averageRating: 4.8, ratingCount: 2850, priceLevel: 50,
+    averageRating: 4.8, ratingCount: 2850, priceLevel: 50000,
     latitude: 15.8801, longitude: 108.3380,
     about: "Phố cổ Hội An là một trong những đô thị cổ được bảo tồn nguyên vẹn nhất Đông Nam Á, được UNESCO công nhận là di sản văn hóa thế giới. Những con đường lát đá, đèn lồng rực rỡ và kiến trúc cổ kính tạo nên vẻ đẹp đặc trưng.",
     // Hoang Hung – room filled with lit lanterns, Hoi An Ancient Town (Unsplash)
@@ -165,7 +165,7 @@ const PLACES_DATA = [
     region: "Thừa Thiên Huế, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Di sản lịch sử",
-    averageRating: 4.7, ratingCount: 1950, priceLevel: 80,
+    averageRating: 4.7, ratingCount: 1950, priceLevel: 80000,
     latitude: 16.4637, longitude: 107.5909,
     about: "Kinh thành Huế là quần thể di tích kiến trúc hoàng gia của nhà Nguyễn, được UNESCO công nhận là di sản thế giới. Những cung điện, lăng tẩm và đền đài tráng lệ phản ánh đỉnh cao nghệ thuật kiến trúc Việt Nam.",
     // Kha Vo – Imperial City of Hue dynasty (verified Unsplash)
@@ -190,7 +190,7 @@ const PLACES_DATA = [
     region: "Hà Giang, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Công viên địa chất UNESCO",
-    averageRating: 4.9, ratingCount: 1200, priceLevel: 90,
+    averageRating: 4.9, ratingCount: 1200, priceLevel: 90000,
     latitude: 23.2742, longitude: 105.3674,
     about: "Cao nguyên đá Đồng Văn là công viên địa chất toàn cầu đầu tiên của Việt Nam được UNESCO công nhận. Những tầng đá vôi dựng đứng, thung lũng sâu thẳm và bản làng dân tộc Mông tạo nên cảnh sắc hùng vĩ độc nhất.",
     // Ryan Le – scenic view of mountains and a road, Ha Giang Vietnam (Unsplash)
@@ -215,7 +215,7 @@ const PLACES_DATA = [
     region: "Yên Bái, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Mùa vàng tháng 9",
-    averageRating: 4.8, ratingCount: 980, priceLevel: 70,
+    averageRating: 4.8, ratingCount: 980, priceLevel: 70000,
     latitude: 21.8174, longitude: 104.0944,
     about: "Ruộng bậc thang Mù Cang Chải được xếp hạng di tích quốc gia, nổi tiếng với những thửa ruộng vàng rực óng ả vào mùa lúa chín. Đây là tác phẩm nghệ thuật của đồng bào Mông được tạo ra qua nhiều thế hệ.",
     // Tom De Decker – Mu Cang Chai terraced rice fields green mist (verified Unsplash, Aug 2025)
@@ -240,7 +240,7 @@ const PLACES_DATA = [
     region: "Quảng Bình, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Hang động kỳ vĩ",
-    averageRating: 4.9, ratingCount: 1650, priceLevel: 120,
+    averageRating: 4.9, ratingCount: 1650, priceLevel: 120000,
     latitude: 17.5439, longitude: 106.1308,
     about: "Vườn quốc gia Phong Nha - Kẻ Bàng là Di sản thiên nhiên thế giới, nơi có hệ thống hang động lớn nhất thế giới bao gồm hang Sơn Đoòng - hang động lớn nhất trên Trái Đất.",
     // Phạm Mạnh – Phong Nha cave tunnel light (verified Unsplash, Jun 2024)
@@ -265,7 +265,7 @@ const PLACES_DATA = [
     region: "Lào Cai, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Nóc nhà Đông Dương",
-    averageRating: 4.7, ratingCount: 2100, priceLevel: 110,
+    averageRating: 4.7, ratingCount: 2100, priceLevel: 110000,
     latitude: 22.3363, longitude: 103.8440,
     about: "Sapa là thị trấn miền núi nơi có đỉnh Fansipan cao nhất Đông Dương (3143m). Ruộng bậc thang, mây mù và văn hóa các dân tộc thiểu số tạo nên sức hút đặc biệt của vùng đất này.",
     // Huy Nguyen – golden rice terraces hillside Sapa Vietnam (verified Unsplash, Sep 2025)
@@ -290,7 +290,7 @@ const PLACES_DATA = [
     region: "Kiên Giang, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Đảo Ngọc",
-    averageRating: 4.8, ratingCount: 2700, priceLevel: 200,
+    averageRating: 4.8, ratingCount: 2700, priceLevel: 200000,
     latitude: 10.2899, longitude: 103.9840,
     about: "Phú Quốc là hòn đảo lớn nhất Việt Nam với những bãi biển cát trắng mịn màng, làn nước trong vắt và rừng nguyên sinh. Đảo ngọc này đang trở thành điểm đến quốc tế hàng đầu Đông Nam Á.",
     // Lily Tran – beach pier palm trees, Phu Quoc Vietnam (verified Unsplash)
@@ -315,7 +315,7 @@ const PLACES_DATA = [
     region: "Bình Thuận, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Sa mạc Việt Nam",
-    averageRating: 4.6, ratingCount: 1400, priceLevel: 85,
+    averageRating: 4.6, ratingCount: 1400, priceLevel: 85000,
     latitude: 10.9340, longitude: 108.2898,
     about: "Mũi Né nổi tiếng với những đồi cát trắng và đỏ độc đáo hiếm gặp ở Đông Nam Á, cùng bãi biển dài xanh biếc. Đây là thiên đường của các môn thể thao biển như lướt ván diều và lướt sóng.",
     // Anton Shuvalov – aerial view fishing village near ocean, Mui Ne (verified Unsplash)
@@ -339,7 +339,7 @@ const PLACES_DATA = [
     region: "Hà Nội, Việt Nam",
     category: "ATTRACTIONS" as const,
     featureLabel: "Biểu tượng Hà Nội",
-    averageRating: 4.5, ratingCount: 1100, priceLevel: 30,
+    averageRating: 4.5, ratingCount: 1100, priceLevel: 30000,
     latitude: 21.0548, longitude: 105.8168,
     about: "Hồ Tây là hồ nước ngọt tự nhiên lớn nhất Hà Nội, bao quanh bởi những ngôi đền cổ kính và hàng cây rủ bóng. Đây là lá phổi xanh của thủ đô và là nơi lý tưởng để thư giãn.",
     // Quang Pham Duy – Tran Quoc Pagoda West Lake Hanoi (verified Unsplash)
@@ -366,7 +366,7 @@ const PLACES_DATA = [
     region: "Hà Nội, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Huyền thoại 60 năm",
-    averageRating: 4.8, ratingCount: 1800, priceLevel: 35,
+    averageRating: 4.8, ratingCount: 1800, priceLevel: 35000,
     latitude: 21.0245, longitude: 105.8412,
     about: "Phở Thìn Lò Đúc là huyền thoại ẩm thực Hà Nội tồn tại hơn 60 năm với công thức nấu nước dùng bí truyền. Phở bò tái lăn xào hành phi có hương vị đặc biệt khác hẳn các quán phở khác.",
     // Kirill Tonkikh – Pho Bo Vietnamese beef noodle soup top view (verified Unsplash)
@@ -390,7 +390,7 @@ const PLACES_DATA = [
     region: "Hà Nội, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Obama từng ghé",
-    averageRating: 4.8, ratingCount: 1500, priceLevel: 25,
+    averageRating: 4.8, ratingCount: 1500, priceLevel: 25000,
     latitude: 21.0160, longitude: 105.8483,
     about: "Bún Chả Hương Liên nổi tiếng khắp thế giới sau khi được Tổng thống Obama và đầu bếp Anthony Bourdain ghé thăm năm 2016. Bún chả Hà Nội ở đây chuẩn vị nhất, phục vụ hơn 500 bát mỗi ngày.",
     // Anh Vy – street food Ho Chi Minh Vietnam (verified Unsplash)
@@ -415,7 +415,7 @@ const PLACES_DATA = [
     region: "Quảng Nam, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Ngon nhất thế giới",
-    averageRating: 4.9, ratingCount: 2000, priceLevel: 15,
+    averageRating: 4.9, ratingCount: 2000, priceLevel: 15000,
     latitude: 15.8773, longitude: 108.3272,
     about: "Bánh Mì Phượng được Anthony Bourdain gọi là bánh mì ngon nhất thế giới. Ổ bánh mì giòn rụm ăn kèm thịt xíu, pâté gan, rau sống và tương ớt đặc biệt tạo nên hương vị không nơi nào có được.",
     // Vu Nguyen – Vietnamese baguette banh mi vietnam (verified Unsplash)
@@ -440,7 +440,7 @@ const PLACES_DATA = [
     region: "Hồ Chí Minh, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Đặc sản Nam Bộ",
-    averageRating: 4.7, ratingCount: 1200, priceLevel: 35,
+    averageRating: 4.7, ratingCount: 1200, priceLevel: 35000,
     latitude: 10.7769, longitude: 106.7009,
     about: "Cơm tấm là linh hồn ẩm thực Sài Gòn - tấm gạo vỡ thơm ngon ăn kèm sườn nướng mật ong, bì lợn, chả hấp và nước chấm đặc trưng miền Nam. Đây là món ăn bình dân nhưng đầy hương vị.",
     // Khuc Le Thanh Danh – table bowls of food Vietnam (verified Unsplash)
@@ -464,7 +464,7 @@ const PLACES_DATA = [
     region: "Đà Nẵng, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Đặc sản miền Trung",
-    averageRating: 4.6, ratingCount: 750, priceLevel: 30,
+    averageRating: 4.6, ratingCount: 750, priceLevel: 30000,
     latitude: 16.0544, longitude: 108.2022,
     about: "Mì Quảng là đặc sản nổi tiếng của vùng Quảng Nam - Đà Nẵng với sợi mì vàng dày, nước dùng đậm đà ít nước, thịt tươi và rau sống tươi ngon. Bánh tráng nướng giòn rụm ăn kèm là nét đặc trưng không thể thiếu.",
     // Markus Winkler – white noodles meat vegetables white bowl (verified Unsplash)
@@ -488,7 +488,7 @@ const PLACES_DATA = [
     region: "Khánh Hòa, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Tươi sống từ biển",
-    averageRating: 4.7, ratingCount: 1100, priceLevel: 80,
+    averageRating: 4.7, ratingCount: 1100, priceLevel: 80000,
     latitude: 12.2388, longitude: 109.1967,
     about: "Nha Trang nổi tiếng với hải sản tươi sống đa dạng được đánh bắt hàng ngày. Tôm hùm, cua hoàng đế, nghêu, sò huyết và cá mú là những đặc sản không thể bỏ qua khi đến thành phố biển này.",
     // Markus Winkler – white noodles meat vegetables (for food placeholder)
@@ -512,7 +512,7 @@ const PLACES_DATA = [
     region: "Hà Nội, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Đang mở cửa",
-    averageRating: 4.6, ratingCount: 890, priceLevel: 45,
+    averageRating: 4.6, ratingCount: 890, priceLevel: 45000,
     latitude: 21.0285, longitude: 105.8342,
     about: "Nhà Hàng Ngon là địa chỉ ẩm thực nổi tiếng tại Hà Nội, nơi quy tụ hàng trăm món ăn truyền thống từ mọi miền đất nước trong không gian biệt thự Pháp cổ điển rộng rãi và xanh mát.",
     // Sharon Chen – chopsticks white bowl food Vietnam (verified Unsplash)
@@ -536,7 +536,7 @@ const PLACES_DATA = [
     region: "Cần Thơ, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Đặc sản sông nước",
-    averageRating: 4.6, ratingCount: 680, priceLevel: 40,
+    averageRating: 4.6, ratingCount: 680, priceLevel: 40000,
     latitude: 10.0452, longitude: 105.7469,
     about: "Lẩu cá kèo là đặc sản đồng bằng sông Cửu Long, nấu với me chua ngọt, rau nhút và bông súng. Cá kèo tươi sống được bắt từ ruộng lúa, có vị ngọt tự nhiên không nơi nào có được.",
     // Khuc Le Thanh Danh – table lots of different bowls of food Vietnam (verified Unsplash)
@@ -560,7 +560,7 @@ const PLACES_DATA = [
     region: "Hà Nội, Việt Nam",
     category: "DINING" as const,
     featureLabel: "Đặc sản Hà Nội",
-    averageRating: 4.7, ratingCount: 960, priceLevel: 20,
+    averageRating: 4.7, ratingCount: 960, priceLevel: 20000,
     latitude: 21.0331, longitude: 105.8505,
     about: "Cà phê trứng Giảng là phát minh độc đáo của Hà Nội từ năm 1946, khi lòng đỏ trứng gà được đánh bông thay cho sữa khan hiếm sau chiến tranh. Ngày nay nó trở thành đặc sản ẩm thực nổi tiếng toàn cầu.",
     // Trung Bui – white noodles meat vegetables Vietnam (verified Unsplash)
@@ -587,7 +587,7 @@ const PLACES_DATA = [
     region: "Quảng Nam, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Mỗi tháng một lần",
-    averageRating: 4.9, ratingCount: 2200, priceLevel: 20,
+    averageRating: 4.9, ratingCount: 2200, priceLevel: 20000,
     latitude: 15.8801, longitude: 108.3380,
     about: "Vào đêm 14 âm lịch hàng tháng, phố cổ Hội An tắt hết đèn điện và thắp sáng bằng ngàn chiếc đèn lồng lung linh. Du khách thả đèn hoa đăng trên sông Hoài - một trải nghiệm tâm linh đặc sắc.",
     // Khoi Tran – colorful lanterns Hoi An Vietnam (verified Unsplash)
@@ -612,7 +612,7 @@ const PLACES_DATA = [
     region: "Lâm Đồng, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Tháng 12 - 2 năm/lần",
-    averageRating: 4.7, ratingCount: 1100, priceLevel: 60,
+    averageRating: 4.7, ratingCount: 1100, priceLevel: 60000,
     latitude: 11.9401, longitude: 108.4583,
     about: "Lễ hội Hoa Đà Lạt được tổ chức 2 năm một lần vào tháng 12, trưng bày hàng trăm loài hoa rực rỡ từ khắp Việt Nam và thế giới. Đây là sự kiện văn hóa nông nghiệp lớn nhất của thành phố ngàn hoa.",
     // Taan Huyn – Dalat flowers forest Vietnam (verified Unsplash, Mar 2025)
@@ -636,7 +636,7 @@ const PLACES_DATA = [
     region: "Hà Nội, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Hàng năm - Tháng 1/2",
-    averageRating: 4.8, ratingCount: 1800, priceLevel: 10,
+    averageRating: 4.8, ratingCount: 1800, priceLevel: 10000,
     latitude: 21.0285, longitude: 105.8542,
     about: "Tết Nguyên Đán tại Hà Nội là dịp lễ hội lớn nhất năm với đường phố rực rỡ hoa đào, hoa mai. Hồ Gươm trở thành tâm điểm của các hoạt động văn hóa, biểu diễn nghệ thuật và pháo hoa đêm giao thừa.",
     // Jahanzeb Ahsan – people night fireworks celebration (verified Unsplash, Jan 2025)
@@ -661,7 +661,7 @@ const PLACES_DATA = [
     region: "Đà Nẵng, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Tháng 6-7 hàng năm",
-    averageRating: 4.9, ratingCount: 3100, priceLevel: 120,
+    averageRating: 4.9, ratingCount: 3100, priceLevel: 120000,
     latitude: 16.0610, longitude: 108.2247,
     about: "Lễ hội Pháo hoa Quốc tế Đà Nẵng (DIFF) là một trong những lễ hội pháo hoa lớn nhất châu Á, quy tụ các đội thi đến từ nhiều quốc gia trình diễn trên sông Hàn. Sự kiện kéo dài nhiều tuần với những màn trình diễn ánh sáng ngoạn mục.",
     // Arthur Debons – happy new year fireworks display (verified Unsplash)
@@ -686,7 +686,7 @@ const PLACES_DATA = [
     region: "Đà Nẵng, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Mùa hè hàng năm",
-    averageRating: 4.6, ratingCount: 920, priceLevel: 35,
+    averageRating: 4.6, ratingCount: 920, priceLevel: 35000,
     latitude: 16.0544, longitude: 108.2022,
     about: "Carnival Đường Phố Đà Nẵng diễn ra hàng năm vào mùa hè trên cầu Rồng và bờ biển Mỹ Khê. Những màn biểu diễn nghệ thuật đường phố, múa lửa, acrobat và nhạc sống tạo nên không khí lễ hội sôi động.",
     // Vivu Vietnam – crowd fireworks Phu Quoc Sunset Town concert (verified Unsplash)
@@ -710,7 +710,7 @@ const PLACES_DATA = [
     region: "Ninh Thuận, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Tháng 10 âm lịch",
-    averageRating: 4.8, ratingCount: 560, priceLevel: 40,
+    averageRating: 4.8, ratingCount: 560, priceLevel: 40000,
     latitude: 11.5738, longitude: 108.9884,
     about: "Lễ Hội Kate là lễ hội lớn nhất của người Chăm theo đạo Bà La Môn, được tổ chức tại các tháp Chăm cổ kính. Du khách được chiêm ngưỡng trang phục truyền thống, vũ điệu và âm nhạc đặc sắc của người Chăm.",
     // Melanie Magdalena – paper lantern flying sky (verified Unsplash – festival context)
@@ -734,7 +734,7 @@ const PLACES_DATA = [
     region: "Hải Phòng, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Ngày 9/8 âm lịch",
-    averageRating: 4.5, ratingCount: 780, priceLevel: 50,
+    averageRating: 4.5, ratingCount: 780, priceLevel: 50000,
     latitude: 20.6834, longitude: 106.7961,
     about: "Lễ hội Chọi Trâu Đồ Sơn là lễ hội truyền thống lâu đời của vùng biển Đồ Sơn, được tổ chức vào ngày 9 tháng 8 âm lịch. Những con trâu mạnh mẽ được chăm sóc cẩn thận và thi đấu trước sự cổ vũ của hàng nghìn người.",
     // Susan Q Yin – street red lanterns china new year (verified Unsplash – festival night atmosphere)
@@ -758,7 +758,7 @@ const PLACES_DATA = [
     region: "Bà Rịa - Vũng Tàu, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Tháng 6 hàng năm",
-    averageRating: 4.4, ratingCount: 420, priceLevel: 25,
+    averageRating: 4.4, ratingCount: 420, priceLevel: 25000,
     latitude: 10.3462, longitude: 107.0843,
     about: "Lễ hội Diều Quốc tế Vũng Tàu thu hút các đội thi đến từ nhiều quốc gia với những con diều khổng lồ nhiều hình dáng và màu sắc độc đáo. Bầu trời Vũng Tàu rực rỡ và sôi động trong suốt những ngày diễn ra lễ hội.",
     // Melanie Magdalena – paper lanterns flying sky (verified Unsplash)
@@ -781,7 +781,7 @@ const PLACES_DATA = [
     region: "Sóc Trăng, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Tháng 10 âm lịch",
-    averageRating: 4.7, ratingCount: 640, priceLevel: 30,
+    averageRating: 4.7, ratingCount: 640, priceLevel: 30000,
     latitude: 9.6028, longitude: 105.9739,
     about: "Lễ hội Oóc Om Bóc là lễ hội lớn nhất của người Khmer Nam Bộ, diễn ra vào ngày rằm tháng 10 âm lịch. Đua ghe Ngo trên sông là hoạt động hấp dẫn nhất với những chiếc ghe dài 24m được trang trí rực rỡ.",
     // Hai Nguyen – Vietnam Can Tho riverside (verified Unsplash)
@@ -805,7 +805,7 @@ const PLACES_DATA = [
     region: "Khánh Hòa, Việt Nam",
     category: "FESTIVALS" as const,
     featureLabel: "Tháng Giêng âm lịch",
-    averageRating: 4.6, ratingCount: 480, priceLevel: 20,
+    averageRating: 4.6, ratingCount: 480, priceLevel: 20000,
     latitude: 12.2388, longitude: 109.1967,
     about: "Lễ hội Cầu Ngư là lễ hội truyền thống của ngư dân ven biển Khánh Hòa, cầu mong biển bình yên, tôm cá đầy khoang. Lễ hội có những nghi thức trang nghiêm, đua thuyền và hát bả trạo đặc sắc.",
     // OnBird Phu Quoc – fishing boat ocean sunset Vietnam (verified Unsplash)

@@ -20,6 +20,7 @@ function toListDto(p: {
   featureLabel: string;
   coverImageUrl: string;
   category: PlaceCategory;
+  priceLevel: number | null;
   images: { url: string }[];
 }) {
   return {
@@ -31,8 +32,35 @@ function toListDto(p: {
     Features: p.featureLabel,
     category: p.category,
     Category: p.category,
+    priceLevel: p.priceLevel,
     image: p.coverImageUrl,
     images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
+  };
+}
+
+function toPromotionDto(p: {
+  id: string;
+  title: string;
+  isActive: boolean;
+  startDate: string;
+  endDate: string;
+  days: string[];
+  startTime: string;
+  endTime: string;
+  specificTime: boolean;
+}) {
+  return {
+    id: p.id,
+    title: p.title,
+    isActive: p.isActive,
+    schedule: {
+      startDate: p.startDate,
+      endDate: p.endDate,
+      days: p.days,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      specificTime: p.specificTime,
+    },
   };
 }
 
@@ -73,6 +101,10 @@ export const placesService = {
       where: { id: placeId },
       include: {
         images: { orderBy: { createdAt: "asc" } },
+        promotions: {
+          where: { isActive: true },
+          orderBy: { createdAt: "desc" },
+        },
         reviews: {
           include: {
             user: { select: { fullName: true, username: true, avatarUrl: true } },
@@ -112,7 +144,24 @@ export const placesService = {
       Category: place.category,
       about: place.about,
       priceLevel: place.priceLevel,
+      promotions: place.promotions.map(toPromotionDto),
+      Promotions: place.promotions.map(toPromotionDto),
       Reviews: reviews,
     };
+  },
+
+  async listPromotions(placeId: string) {
+    const place = await prisma.place.findUnique({
+      where: { id: placeId },
+      select: { id: true },
+    });
+    if (!place) return null;
+
+    const promotions = await prisma.promotion.findMany({
+      where: { placeId, isActive: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return promotions.map(toPromotionDto);
   },
 };

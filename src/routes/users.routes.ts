@@ -4,7 +4,7 @@ import { usersService } from "../services/users.service.js";
 import { reviewsService } from "../services/reviews.service.js";
 import { jsonError, wrapAsync } from "../http/errors.js";
 import { meFavoritesRouter } from "./me-favorites.routes.js";
-import { meTripsRouter } from "./me-trips.routes.js";
+import { meTripsRouter } from "./trips.routes.js";
 import { parsePagination } from "../http/pagination.js";
 
 export const usersRouter = Router();

@@ -33,6 +33,20 @@ const tripLocationSchema = z
   })
   .strict();
 
+const tripPlaceWriteSchema = z
+  .object({
+    placeId: z.string().trim().min(1),
+    title: z.string().trim().min(1).optional(),
+    description: z.string().optional().nullable(),
+    imageUrl: z.string().url().optional().nullable(),
+    period: z.enum(tripActivityPeriods).default("MORNING"),
+    scheduledTime: z.string().optional().nullable(),
+    estimatedCost: z.coerce.number().nonnegative().default(0),
+    rating: z.coerce.number().min(0).max(5).optional().nullable(),
+    sortOrder: z.coerce.number().int().positive().optional(),
+  })
+  .strict();
+
 const tripDaySchema = z
   .object({
     dayId: z.string().optional().nullable(),
@@ -181,6 +195,83 @@ export const tripsService = {
     return tripDiaryService.createForTrip(userId, tripId, body);
   },
 
+  async addPlaceToDayForUser(userId: number, tripId: string, dayId: string, body: unknown) {
+    const input = tripPlaceWriteSchema.parse(body);
+    const day = await findOwnedTripDay(userId, tripId, dayId);
+    const place = await prisma.place.findUnique({
+      where: { id: input.placeId },
+      select: {
+        id: true,
+        name: true,
+        coverImageUrl: true,
+        averageRating: true,
+      },
+    });
+
+    if (!place) {
+      throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
+    }
+
+    const sortOrder =
+      input.sortOrder ??
+      ((await prisma.tripActivity.aggregate({
+        where: { tripDayId: day.id },
+        _max: { sortOrder: true },
+      }))._max.sortOrder ?? 0) + 1;
+
+    await prisma.tripActivity.create({
+      data: {
+        tripDayId: day.id,
+        placeId: place.id,
+        title: input.title ?? place.name,
+        description: input.description ?? null,
+        imageUrl: input.imageUrl ?? place.coverImageUrl ?? null,
+        period: input.period,
+        scheduledTime: input.scheduledTime ?? null,
+        estimatedCost: input.estimatedCost,
+        rating: input.rating ?? place.averageRating ?? null,
+        sortOrder,
+      },
+    });
+
+    await refreshDayBudget(day.id);
+    return getRequiredTripForUser(userId, tripId);
+  },
+
+  async removePlaceFromDayForUser(userId: number, tripId: string, dayId: string, placeId: string) {
+    const day = await findOwnedTripDay(userId, tripId, dayId);
+    const result = await prisma.tripActivity.deleteMany({
+      where: {
+        tripDayId: day.id,
+        placeId,
+      },
+    });
+
+    if (result.count === 0) {
+      throw Object.assign(new Error("TRIP_PLACE_NOT_FOUND"), { statusCode: 404 });
+    }
+
+    await refreshDayBudget(day.id);
+    return getRequiredTripForUser(userId, tripId);
+  },
+
+  async removeActivityFromDayForUser(userId: number, tripId: string, dayId: string, activityId: string) {
+    const day = await findOwnedTripDay(userId, tripId, dayId);
+    const result = await prisma.tripActivity.deleteMany({
+      where: {
+        id: activityId,
+        tripDayId: day.id,
+      },
+    });
+
+    if (result.count === 0) {
+      throw Object.assign(new Error("TRIP_ACTIVITY_NOT_FOUND"), { statusCode: 404 });
+    }
+
+    await refreshDayBudget(day.id);
+    return getRequiredTripForUser(userId, tripId);
+  },
+
   async writeTrip(userId: number, tripId: string | null, input: TripInput) {
     if (input.startDate > input.endDate) {
       throw Object.assign(new Error("INVALID_DATE_RANGE"), { statusCode: 400 });
@@ -260,14 +351,15 @@ export const tripsService = {
     const budgetValue =
       input.budget ??
       sum(dayInputs.map((day) => sum(day.locations.map((location) => location.estimatedCost ?? 0))));
+    const existingTripFields = getTripPersistedFields(existingTrip);
     const coverImageUrl =
-      input.image ?? existingTrip?.coverImageUrl ?? hotelPlace?.coverImageUrl ?? null;
+      input.image ?? existingTripFields.coverImageUrl ?? hotelPlace?.coverImageUrl ?? null;
     const currentHotelName = input.hotel ?? existingTrip?.currentHotelName ?? hotelPlace?.name ?? null;
     const currentHotelPlaceId = input.hotelPlaceId ?? existingTrip?.currentHotelPlaceId ?? null;
     const destination = input.destination ?? existingTrip?.destination ?? null;
     const tripStartDate = input.startDate;
     const tripEndDate = input.endDate;
-    const currency = input.currency ?? existingTrip?.currency ?? "VND";
+    const currency = input.currency ?? existingTripFields.currency ?? "VND";
 
     const savedTrip = tripId
       ? await prisma.trip.update({
@@ -303,14 +395,20 @@ export const tripsService = {
 
     await syncTripMembers(savedTrip.id, normalizedMembers, userById);
 
-    const existingDaysById = new Map(existingTrip?.days.map((day) => [day.id, day]) ?? []);
+    const existingDays = existingTrip?.days ?? [];
+    const existingDaysById = new Map(existingDays.map((day) => [day.id, day]));
+    const existingDaysByDate = new Map(existingDays.map((day) => [dateKey(day.date), day]));
     const keptDayIds = new Set<string>();
 
     for (const [index, dayInput] of dayInputs.entries()) {
-      const existingDay =
-        (dayInput.dayId ? existingDaysById.get(dayInput.dayId) : null) ??
-        existingTrip?.days[index] ??
-        null;
+      const existingDay = findReusableTripDay(
+        dayInput,
+        index,
+        existingDays,
+        existingDaysById,
+        existingDaysByDate,
+        keptDayIds
+      );
       const dayBudget = sum(dayInput.locations.map((location) => location.estimatedCost ?? 0));
       const dayTitle = dayInput.title ?? existingDay?.title ?? `Day ${index + 1}`;
 
@@ -398,6 +496,12 @@ export const tripsService = {
 export type TripWithDetails = Prisma.TripGetPayload<{ include: typeof tripInclude }>;
 type TripDayWithActivities = TripWithDetails["days"][number];
 type TripActivityWithPlace = TripDayWithActivities["activities"][number];
+type TripPersistedFields = {
+  coverImageUrl?: string | null;
+  budget?: number | null;
+  totalBudgetPerPerson?: number | null;
+  currency?: string | null;
+};
 type TripInput = z.infer<typeof tripWriteSchema>;
 type TripMemberInput = {
   userId?: number;
@@ -537,6 +641,26 @@ function buildDayInputs(input: TripInput, existingTrip: TripWithDetails | null) 
   }
 
   return result;
+}
+
+function findReusableTripDay(
+  dayInput: TripDayInput,
+  index: number,
+  existingDays: TripDayWithActivities[],
+  existingDaysById: Map<string, TripDayWithActivities>,
+  existingDaysByDate: Map<string, TripDayWithActivities>,
+  usedDayIds: Set<string>
+) {
+  const byId = dayInput.dayId ? existingDaysById.get(dayInput.dayId) : undefined;
+  if (byId && !usedDayIds.has(byId.id)) return byId;
+
+  const byDate = existingDaysByDate.get(dateKey(dayInput.date));
+  if (byDate && !usedDayIds.has(byDate.id)) return byDate;
+
+  const byIndex = existingDays[index];
+  if (byIndex && !usedDayIds.has(byIndex.id)) return byIndex;
+
+  return null;
 }
 
 function mapExistingActivityToInput(activity: TripActivityWithPlace): TripLocationInput {
@@ -706,6 +830,9 @@ export function mapTrip(trip: TripWithDetails) {
     isRegisteredUser: Boolean(member.userId),
   }));
   const itineraryData = trip.days.map((day) => mapDay(day, trip.title));
+  const persistedFields = getTripPersistedFields(trip);
+  const budget = persistedFields.budget ?? persistedFields.totalBudgetPerPerson ?? 0;
+  const totalBudgetPerPerson = persistedFields.totalBudgetPerPerson ?? budget;
 
   return {
     id: trip.id,
@@ -714,11 +841,11 @@ export function mapTrip(trip: TripWithDetails) {
     startDate: trip.startDate,
     endDate: trip.endDate,
     image:
-      trip.coverImageUrl ??
+      persistedFields.coverImageUrl ??
       trip.currentHotelPlace?.coverImageUrl ??
       itineraryData[0]?.locations[0]?.image ??
       null,
-    coverImageUrl: trip.coverImageUrl ?? null,
+    coverImageUrl: persistedFields.coverImageUrl,
     hotel: trip.currentHotelName ?? trip.currentHotelPlace?.name ?? null,
     currentHotel: {
       name: trip.currentHotelName ?? trip.currentHotelPlace?.name ?? null,
@@ -727,9 +854,9 @@ export function mapTrip(trip: TripWithDetails) {
     destination: trip.destination,
     duration: daysBetweenInclusive(trip.startDate, trip.endDate),
     durationDays: daysBetweenInclusive(trip.startDate, trip.endDate),
-    budget: trip.budget ?? trip.totalBudgetPerPerson,
-    totalBudgetPerPerson: trip.totalBudgetPerPerson,
-    currency: trip.currency,
+    budget,
+    totalBudgetPerPerson,
+    currency: persistedFields.currency ?? "VND",
     members: collaborators,
     collaborators,
     itineraryData,
@@ -741,6 +868,17 @@ export function mapTrip(trip: TripWithDetails) {
     })),
     createdAt: trip.createdAt,
     updatedAt: trip.updatedAt,
+  };
+}
+
+function getTripPersistedFields(trip: TripWithDetails | null): Required<TripPersistedFields> {
+  const fields = trip as TripPersistedFields | null;
+
+  return {
+    coverImageUrl: fields?.coverImageUrl ?? null,
+    budget: fields?.budget ?? null,
+    totalBudgetPerPerson: fields?.totalBudgetPerPerson ?? null,
+    currency: fields?.currency ?? null,
   };
 }
 
@@ -777,6 +915,55 @@ function mapActivity(activity: TripActivityWithPlace) {
   };
 }
 
+async function findOwnedTripDay(userId: number, tripId: string, dayIdOrNumber: string) {
+  const dayNumber = Number(dayIdOrNumber);
+  const day = await prisma.tripDay.findFirst({
+    where: {
+      tripId,
+      ...(Number.isInteger(dayNumber) && dayNumber > 0
+        ? { OR: [{ id: dayIdOrNumber }, { dayNumber }] }
+        : { id: dayIdOrNumber }),
+      trip: {
+        userId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!day) {
+    throw Object.assign(new Error("TRIP_DAY_NOT_FOUND"), { statusCode: 404 });
+  }
+
+  return day;
+}
+
+async function refreshDayBudget(dayId: string) {
+  const totals = await prisma.tripActivity.aggregate({
+    where: { tripDayId: dayId },
+    _sum: { estimatedCost: true },
+  });
+
+  await prisma.tripDay.update({
+    where: { id: dayId },
+    data: { estimatedBudget: totals._sum.estimatedCost ?? 0 },
+  });
+}
+
+async function getRequiredTripForUser(userId: number, tripId: string) {
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, userId },
+    include: tripInclude,
+  });
+
+  if (!trip) {
+    throw Object.assign(new Error("TRIP_NOT_FOUND"), { statusCode: 404 });
+  }
+
+  return mapTrip(trip);
+}
+
 function formatTripDateRange(startDate: Date, endDate: Date) {
   const formatter = new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -796,6 +983,10 @@ function addDays(date: Date, daysToAdd: number) {
   const nextDate = new Date(date);
   nextDate.setUTCDate(nextDate.getUTCDate() + daysToAdd);
   return nextDate;
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function sum(values: number[]) {
