@@ -19,6 +19,7 @@ enum PlaceCategory {
 enum UserRole {
   TRAVELER
   OWNER
+  ADMIN
 }
 
 enum TripActivityPeriod {

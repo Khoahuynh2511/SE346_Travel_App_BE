@@ -34,6 +34,44 @@ describe("Auth Routes", () => {
       expect(response.body.data).toHaveProperty("accessToken");
       expect(response.body.data).toHaveProperty("userId");
       expect(response.body.data.user).toHaveProperty("email", testEmail);
+      expect(response.body.data.user).toHaveProperty("role", "TRAVELER");
+
+      const user = await prisma.user.findUnique({ where: { email: testEmail } });
+      expect(user?.role).toBe("TRAVELER");
+    });
+
+    it("should register an owner when role OWNER is requested", async () => {
+      const ownerEmail = `owner-${Date.now()}@example.com`;
+
+      const response = await request(app)
+        .post("/api/v1/auth/register")
+        .send({
+          email: ownerEmail,
+          password: testPassword,
+          fullName: "Owner User",
+          role: "OWNER",
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.data.user).toHaveProperty("role", "OWNER");
+
+      const user = await prisma.user.findUnique({ where: { email: ownerEmail } });
+      expect(user?.role).toBe("OWNER");
+      await prisma.user.deleteMany({ where: { email: ownerEmail } });
+    });
+
+    it("should not allow public admin registration", async () => {
+      const response = await request(app)
+        .post("/api/v1/auth/register")
+        .send({
+          email: testEmail,
+          password: testPassword,
+          role: "ADMIN",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("error", "VALIDATION");
     });
 
     it("should return 409 if email already registered", async () => {
@@ -111,6 +149,47 @@ describe("Auth Routes", () => {
       expect(response.body.data).toHaveProperty("accessToken");
       expect(response.body.data).toHaveProperty("userId");
       expect(response.body.data.user).toHaveProperty("email", testEmail);
+      expect(response.body.data.user).toHaveProperty("role", "TRAVELER");
+    });
+
+    it("should return ADMIN role for admin login", async () => {
+      const adminEmail = `admin-${Date.now()}@example.com`;
+      await prisma.user.create({
+        data: {
+          email: adminEmail,
+          passwordHash: await bcrypt.hash(testPassword, 10),
+          role: "ADMIN",
+          fullName: "Admin User",
+        },
+      });
+
+      const response = await request(app)
+        .post("/api/v1/auth/login")
+        .send({
+          email: adminEmail,
+          password: testPassword,
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.user).toHaveProperty("role", "ADMIN");
+      await prisma.user.deleteMany({ where: { email: adminEmail } });
+    });
+
+    it("should return 403 when a traveler calls admin API", async () => {
+      const loginResponse = await request(app)
+        .post("/api/v1/auth/login")
+        .send({
+          email: testEmail,
+          password: testPassword,
+        });
+
+      const response = await request(app)
+        .get("/api/v1/admin")
+        .set("Authorization", `Bearer ${loginResponse.body.data.accessToken}`);
+
+      expect(response.status).toBe(403);
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("error", "FORBIDDEN");
     });
 
     it("should return 401 if email not found", async () => {

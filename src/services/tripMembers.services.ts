@@ -155,6 +155,7 @@ export const tripMembersService = {
         FROM "User" u
         LEFT JOIN "currentTripUsers" current_users ON current_users."userId" = u."id"
         WHERE u."id" <> ${input.userId}
+          AND u."role" = 'TRAVELER'::"UserRole"
           AND current_users."userId" IS NULL
       )
       SELECT

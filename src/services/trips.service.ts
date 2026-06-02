@@ -173,16 +173,8 @@ export const tripsService = {
   },
 
   async deleteForUser(userId: number, tripId: string) {
-    const result = await prisma.trip.deleteMany({
-      where: {
-        id: tripId,
-        userId,
-      },
-    });
-
-    if (result.count === 0) {
-      throw Object.assign(new Error("TRIP_NOT_FOUND"), { statusCode: 404 });
-    }
+    await assertCanDeleteTrip(userId, tripId);
+    await prisma.trip.delete({ where: { id: tripId } });
 
     return { id: tripId };
   },
@@ -819,6 +811,21 @@ async function assertCanEditTrip(userId: number, tripId: string) {
   }
 }
 
+async function assertCanDeleteTrip(userId: number, tripId: string) {
+  const trip = await prisma.trip.findUnique({
+    where: { id: tripId },
+    select: { userId: true },
+  });
+
+  if (!trip) {
+    throw Object.assign(new Error("TRIP_NOT_FOUND"), { statusCode: 404 });
+  }
+
+  if (trip.userId !== userId) {
+    throw Object.assign(new Error("FORBIDDEN"), { statusCode: 403 });
+  }
+}
+
 export function mapTrip(trip: TripWithDetails) {
   const collaborators = trip.members.map((member) => ({
     id: member.id,
@@ -916,6 +923,8 @@ function mapActivity(activity: TripActivityWithPlace) {
 }
 
 async function findOwnedTripDay(userId: number, tripId: string, dayIdOrNumber: string) {
+  await assertCanEditTrip(userId, tripId);
+
   const dayNumber = Number(dayIdOrNumber);
   const day = await prisma.tripDay.findFirst({
     where: {
@@ -923,9 +932,6 @@ async function findOwnedTripDay(userId: number, tripId: string, dayIdOrNumber: s
       ...(Number.isInteger(dayNumber) && dayNumber > 0
         ? { OR: [{ id: dayIdOrNumber }, { dayNumber }] }
         : { id: dayIdOrNumber }),
-      trip: {
-        userId,
-      },
     },
     select: {
       id: true,
@@ -952,8 +958,10 @@ async function refreshDayBudget(dayId: string) {
 }
 
 async function getRequiredTripForUser(userId: number, tripId: string) {
+  await assertCanEditTrip(userId, tripId);
+
   const trip = await prisma.trip.findFirst({
-    where: { id: tripId, userId },
+    where: { id: tripId },
     include: tripInclude,
   });
 

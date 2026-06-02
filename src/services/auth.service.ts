@@ -11,6 +11,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   fullName: z.string().min(1).optional(),
+  role: z.enum(["TRAVELER", "OWNER"]).optional(),
 });
 
 const loginSchema = z.object({
@@ -100,6 +101,7 @@ export const authService = {
         data: {
           email: data.email,
           passwordHash,
+          role: data.role ?? "TRAVELER",
           fullName: data.fullName ?? null,
         },
         select: {

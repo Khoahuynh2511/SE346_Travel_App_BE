@@ -98,6 +98,7 @@ const USERS_DATA = [
   { email: "nam.bui@example.com",      fullName: "Bùi Thanh Nam",     username: "nam_explorer",      location: "Hà Giang, Việt Nam",      avatarUrl: "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&h=150&fit=crop&crop=face", role: "TRAVELER" as const },
   { email: "thu.hoang@example.com",    fullName: "Hoàng Minh Thu",   username: "thu_adventurer",    location: "Đà Lạt, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face", role: "TRAVELER" as const },
   { email: "owner@example.com",        fullName: "Owner Demo",        username: "owner_demo",        location: "Hà Nội, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&crop=face", role: "OWNER"    as const },
+  { email: "admin@example.com",        fullName: "Admin Demo",        username: "admin_demo",        location: "Hà Nội, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face", role: "ADMIN"    as const, password: "admin1234" },
 ];
 
 // ─── PLACES ───────────────────────────────────────────────────────────────────
@@ -848,10 +849,11 @@ async function main() {
 
   // ── Users ──────────────────────────────────────────────────────────────────
   console.log("👥 Creating users...");
-  const passwordHash = await bcrypt.hash("demo1234", 10);
   const seededUsers = await Promise.all(
     USERS_DATA.map(async (u) => {
-      if (!u.avatarUrl) return { ...u, avatarUrl: null };
+      const rawPassword = (u as { password?: string }).password ?? "demo1234";
+      const passwordHash = await bcrypt.hash(rawPassword, 10);
+      if (!u.avatarUrl) return { ...u, passwordHash, avatarUrl: null };
       const avatarKey = u.username ?? u.email.split("@")[0] ?? "user";
       const avatarUrl = await uploadSeedImage({
         storage,
@@ -859,14 +861,14 @@ async function main() {
         objectPath: buildSeedObjectPath(`seed/users/${avatarKey}`, u.avatarUrl),
         imageUrl: u.avatarUrl,
       });
-      return { ...u, avatarUrl };
+      return { ...u, passwordHash, avatarUrl };
     })
   );
   const createdUsers = await Promise.all(
     seededUsers.map((u) =>
       prisma.user.create({
         data: {
-          email: u.email, passwordHash,
+          email: u.email, passwordHash: u.passwordHash,
           role: u.role, fullName: u.fullName, username: u.username,
           location: u.location, avatarUrl: u.avatarUrl ?? null,
         },
@@ -1259,26 +1261,47 @@ async function main() {
     },
   });
 
+  const pendingInviteTrip = await prisma.trip.create({
+    data: {
+      userId: travelerUsers[3].id,
+      title: "Rủ rê săn mây Đà Lạt",
+      destination: "Đà Lạt, Lâm Đồng",
+      currentHotelName: "Homestay Đồi Thông",
+      startDate: new Date("2027-01-10T00:00:00.000Z"),
+      endDate: new Date("2027-01-12T00:00:00.000Z"),
+      budget: 3600000,
+      totalBudgetPerPerson: 1800000,
+      coverImageUrl: createdPlaceCoverImages[6],
+      currency: "VND",
+      members: {
+        create: [
+          { userId: travelerUsers[3].id, status: "ACTIVE", joinedAt: new Date("2026-12-20T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-12-20T00:00:00.000Z") },
+          { userId: demoUser.id, invitedById: travelerUsers[3].id, status: "PENDING" },
+        ],
+      },
+    },
+  });
+
   console.log("Creating sample notifications...");
   const notificationData: Prisma.NotificationCreateInput[] = [
     {
       type: "invited",
       actor: { connect: { id: travelerUsers[3].id } },
-      targetId: weekendTrip.id,
+      targetId: pendingInviteTrip.id,
       title: "Trip invitation",
       body: "You have been invited to a trip.",
       data: {
-        tripId: weekendTrip.id,
+        tripId: pendingInviteTrip.id,
         username: travelerUsers[3].fullName ?? travelerUsers[3].username ?? travelerUsers[3].email,
-        itineraryName: weekendTrip.title,
+        itineraryName: pendingInviteTrip.title,
         days: 3,
       },
-      createdAt: new Date("2026-11-28T03:30:00.000Z"),
+      createdAt: new Date("2026-12-20T03:30:00.000Z"),
       recipients: {
         create: {
           userId: demoUser.id,
           isRead: false,
-          createdAt: new Date("2026-11-28T03:30:00.000Z"),
+          createdAt: new Date("2026-12-20T03:30:00.000Z"),
         },
       },
     },
@@ -1336,28 +1359,6 @@ async function main() {
           userId: demoUser.id,
           isRead: false,
           createdAt: new Date("2026-11-09T08:20:00.000Z"),
-        },
-      },
-    },
-    {
-      type: "invited",
-      actor: { connect: { id: travelerUsers[4].id } },
-      targetId: sampleTrip.id,
-      title: "Trip member request",
-      body: "A traveler wants to join your trip.",
-      data: {
-        tripId: sampleTrip.id,
-        username: travelerUsers[4].fullName ?? travelerUsers[4].username ?? travelerUsers[4].email,
-        itineraryName: sampleTrip.title,
-        days: 7,
-      },
-      createdAt: new Date("2026-11-08T14:45:00.000Z"),
-      recipients: {
-        create: {
-          userId: demoUser.id,
-          isRead: true,
-          readAt: new Date("2026-11-08T15:05:00.000Z"),
-          createdAt: new Date("2026-11-08T14:45:00.000Z"),
         },
       },
     },
@@ -1428,10 +1429,10 @@ async function main() {
   }
 
   const tripStats = {
-    trips: 2,
+    trips: 3,
     days: 10,
     activities: 12,
-    members: 5,
+    members: 7,
     notifications: notificationData.length,
   };
   const totalReviews = PLACES_DATA.reduce((a, p) => a + p.reviews.length, 0);
@@ -1445,12 +1446,12 @@ async function main() {
 
   console.log("\n✅ Seed completed successfully!");
   console.log(`📊 Summary:`);
-  console.log(`   👥 ${createdUsers.length} users (${createdUsers.length - 1} travelers + 1 owner)`);
+  console.log(`   👥 ${createdUsers.length} users (${travelerUsers.length} travelers + 1 owner + 1 admin)`);
   console.log(`   🏝️  ${PLACES_DATA.length} places (${attractions} ATTRACTIONS · ${dining} DINING · ${festivals} FESTIVALS · ${stays} STAYS · ${shopping} SHOPPING)`);
   console.log(`   ⭐ ${totalReviews} reviews`);
   console.log(`   🎫 5 promotions`);
   console.log(`   ❤️  ${createdPlaces.length * 3} favorites`);
-  console.log(`   trips: ${tripStats.trips} (${sampleTrip.title}, ${weekendTrip.title})`);
+  console.log(`   trips: ${tripStats.trips} (${sampleTrip.title}, ${weekendTrip.title}, ${pendingInviteTrip.title})`);
   console.log(`   trip days: ${tripStats.days}, activities: ${tripStats.activities}, members: ${tripStats.members}`);
   console.log(`   notifications: ${tripStats.notifications} for ${demoUser.email}`);
 }

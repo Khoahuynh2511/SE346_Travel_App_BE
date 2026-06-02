@@ -16,6 +16,7 @@ describe("Trips integration", () => {
   let token = "";
   let userId = 0;
   let collaboratorId = 0;
+  let collaboratorToken = "";
   let inviteeId = 0;
   let inviteeToken = "";
   let hotelPlaceId = "";
@@ -46,6 +47,7 @@ describe("Trips integration", () => {
       },
     });
     collaboratorId = collaborator.id;
+    collaboratorToken = authService.signToken(collaborator.id, collaborator.email);
 
     const invitee = await prisma.user.create({
       data: {
@@ -294,6 +296,33 @@ describe("Trips integration", () => {
       estimatedCost: 1200000,
     });
 
+    const activeMemberUpdatePayload = {
+      ...updatePayload,
+      title: "Da Lat Active Member Edit",
+    };
+
+    const activeMemberUpdateResponse = await request(app)
+      .patch(`/api/v1/trips/${tripId}`)
+      .set(authHeader(collaboratorToken))
+      .send(activeMemberUpdatePayload);
+
+    expect(activeMemberUpdateResponse.status).toBe(200);
+    expect(activeMemberUpdateResponse.body.data.title).toBe("Da Lat Active Member Edit");
+
+    const activeMemberDeleteResponse = await request(app)
+      .delete(`/api/v1/trips/${tripId}`)
+      .set(authHeader(collaboratorToken));
+
+    expect(activeMemberDeleteResponse.status).toBe(403);
+
+    const restoreOwnerUpdateResponse = await request(app)
+      .patch(`/api/v1/trips/${tripId}`)
+      .set(authHeader(token))
+      .send(updatePayload);
+
+    expect(restoreOwnerUpdateResponse.status).toBe(200);
+    expect(restoreOwnerUpdateResponse.body.data.title).toBe("Da Lat Autumn Trip");
+
     const inviteResponse = await request(app)
       .post(`/api/v1/trips/${tripId}/members/invite`)
       .set(authHeader(token))
@@ -365,7 +394,7 @@ describe("Trips integration", () => {
       .delete(`/api/v1/trips/${tripId}`)
       .set(authHeader(inviteeToken));
 
-    expect(pendingDeleteResponse.status).toBe(404);
+    expect(pendingDeleteResponse.status).toBe(403);
 
     const uninviteResponse = await request(app)
       .delete(`/api/v1/trips/${tripId}/invitations/${inviteeId}`)
