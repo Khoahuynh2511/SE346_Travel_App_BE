@@ -7,6 +7,19 @@ import bcrypt from "bcryptjs";
 import { env } from "../src/config/env.js";
 
 const prisma = new PrismaClient();
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfUtcDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addUtcDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * DAY_MS);
+}
+
+function withUtcTime(date: Date, hours: number, minutes = 0) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hours, minutes, 0));
+}
 
 function requireSupabaseConfig() {
   if (!env.supabaseUrl || !env.supabaseServiceRoleKey) {
@@ -98,6 +111,7 @@ const USERS_DATA = [
   { email: "nam.bui@example.com",      fullName: "Bùi Thanh Nam",     username: "nam_explorer",      location: "Hà Giang, Việt Nam",      avatarUrl: "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&h=150&fit=crop&crop=face", role: "TRAVELER" as const },
   { email: "thu.hoang@example.com",    fullName: "Hoàng Minh Thu",   username: "thu_adventurer",    location: "Đà Lạt, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face", role: "TRAVELER" as const },
   { email: "owner@example.com",        fullName: "Owner Demo",        username: "owner_demo",        location: "Hà Nội, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&crop=face", role: "OWNER"    as const },
+  { email: "owner2@example.com",       fullName: "Second Owner Demo", username: "owner_two_demo",    location: "Đà Nẵng, Việt Nam",       avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face", role: "OWNER"    as const },
   { email: "admin@example.com",        fullName: "Admin Demo",        username: "admin_demo",        location: "Hà Nội, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face", role: "ADMIN"    as const, password: "admin1234" },
 ];
 
@@ -826,6 +840,138 @@ const PLACES_DATA = [
   },
 ];
 
+const REMOVED_PLACE_NAMES = new Set([
+  "Mũi Né - Đồi Cát Bay",
+  "Hồ Tây & Đền Quán Thánh",
+  "Cà Phê Trứng Giảng Hà Nội",
+  "Lễ Hội Chọi Trâu Đồ Sơn",
+  "Lễ Hội Diều Quốc Tế Vũng Tàu",
+  "Lễ Hội Oóc Om Bóc - Đua Ghe Ngo",
+  "Lễ Hội Cầu Ngư Khánh Hòa",
+]);
+
+const ADDED_PLACES_DATA = [
+  {
+    name: "Khách Sạn Hội An Riverside",
+    region: "Quảng Nam, Việt Nam",
+    category: "STAYS" as const,
+    featureLabel: "Khách sạn ven sông",
+    averageRating: 4.7, ratingCount: 620, priceLevel: 1450000,
+    latitude: 15.8794, longitude: 108.3352,
+    about: "Khách sạn ven sông với phòng nghỉ sáng sủa, hồ bơi nhỏ và vị trí thuận tiện để đi bộ vào phố cổ Hội An.",
+    images: [
+      "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&q=80",
+      "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200&q=80",
+      "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=1200&q=80",
+    ],
+    reviews: [
+      { userIdx: 0, rating: 5, content: "Phòng sạch, nhân viên hỗ trợ nhanh và đi bộ ra phố cổ rất tiện. Buổi sáng nhìn ra sông khá thư giãn." },
+      { userIdx: 2, rating: 4, content: "Bữa sáng ổn, vị trí đẹp. Nên đặt phòng hướng sông nếu đi cùng gia đình." },
+      { userIdx: 5, rating: 5, content: "Không gian yên tĩnh, phù hợp nghỉ lại sau một ngày dạo phố Hội An." },
+    ],
+  },
+  {
+    name: "Motel Đà Lạt Pine Hill",
+    region: "Lâm Đồng, Việt Nam",
+    category: "STAYS" as const,
+    featureLabel: "Motel đồi thông",
+    averageRating: 4.4, ratingCount: 310, priceLevel: 520000,
+    latitude: 11.9404, longitude: 108.4583,
+    about: "Motel nhỏ trên đồi thông, giá dễ chịu, phù hợp nhóm bạn cần chỗ nghỉ gọn gàng gần trung tâm Đà Lạt.",
+    images: [
+      "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1200&q=80",
+      "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1200&q=80",
+      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200&q=80",
+    ],
+    reviews: [
+      { userIdx: 3, rating: 4, content: "Giá hợp lý, phòng đủ dùng và chủ motel thân thiện. Tối hơi lạnh nên nhớ mang áo ấm." },
+      { userIdx: 6, rating: 5, content: "Đi nhóm bạn rất ổn, có chỗ để xe và gần nhiều quán cà phê đẹp." },
+      { userIdx: 8, rating: 4, content: "Không quá sang nhưng sạch sẽ, đúng kiểu nghỉ nhanh sau lịch trình săn mây." },
+    ],
+  },
+  {
+    name: "Motel Biển Mỹ Khê",
+    region: "Đà Nẵng, Việt Nam",
+    category: "STAYS" as const,
+    featureLabel: "Motel gần biển",
+    averageRating: 4.3, ratingCount: 280, priceLevel: 480000,
+    latitude: 16.0618, longitude: 108.2460,
+    about: "Motel gần bãi biển Mỹ Khê, phòng cơ bản, dễ di chuyển tới biển, cầu Rồng và các khu ăn uống đêm.",
+    images: [
+      "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=1200&q=80",
+      "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=1200&q=80",
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&q=80",
+    ],
+    reviews: [
+      { userIdx: 1, rating: 4, content: "Đi bộ ra biển nhanh, phòng vừa đủ cho chuyến ngắn ngày. Nhân viên chỉ đường ăn hải sản rất nhiệt tình." },
+      { userIdx: 4, rating: 4, content: "Giá tốt so với vị trí gần biển. Phù hợp du lịch tiết kiệm." },
+      { userIdx: 7, rating: 5, content: "Sáng ra biển ngắm bình minh cực tiện, gửi xe máy miễn phí." },
+    ],
+  },
+  {
+    name: "Chợ Bến Thành",
+    region: "Hồ Chí Minh, Việt Nam",
+    category: "SHOPPING" as const,
+    featureLabel: "Biểu tượng mua sắm",
+    averageRating: 4.5, ratingCount: 1600, priceLevel: 300000,
+    latitude: 10.7725, longitude: 106.6980,
+    about: "Khu chợ trung tâm nổi tiếng với quầy lưu niệm, vải vóc, đặc sản và ẩm thực đường phố Sài Gòn.",
+    images: [
+      "https://images.unsplash.com/photo-1582275018660-7ee1d49afc1c?w=1200&q=80",
+      "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1200&q=80",
+      "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1200&q=80",
+    ],
+    reviews: [
+      { userIdx: 0, rating: 5, content: "Rất nhiều món quà nhỏ dễ mua, nên hỏi giá trước và đi buổi chiều cho đỡ đông." },
+      { userIdx: 3, rating: 4, content: "Không khí chợ nhộn nhịp, đồ ăn nhanh và đặc sản khá đa dạng." },
+      { userIdx: 6, rating: 4, content: "Một điểm nên ghé nếu muốn mua quà Sài Gòn trong thời gian ngắn." },
+    ],
+  },
+  {
+    name: "Vincom Center Đồng Khởi",
+    region: "Hồ Chí Minh, Việt Nam",
+    category: "SHOPPING" as const,
+    featureLabel: "Trung tâm thương mại",
+    averageRating: 4.6, ratingCount: 980, priceLevel: 650000,
+    latitude: 10.7781, longitude: 106.7017,
+    about: "Trung tâm mua sắm hiện đại ở khu Đồng Khởi, có nhiều thương hiệu, nhà hàng và không gian tránh nóng giữa trung tâm thành phố.",
+    images: [
+      "https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?w=1200&q=80",
+      "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1200&q=80",
+      "https://images.unsplash.com/photo-1481437156560-3205f6a55735?w=1200&q=80",
+    ],
+    reviews: [
+      { userIdx: 2, rating: 5, content: "Dễ tìm nhà hàng và quán cà phê, vị trí trung tâm nên kết hợp dạo phố rất tiện." },
+      { userIdx: 5, rating: 4, content: "Nhiều lựa chọn mua sắm, không gian sạch và mát." },
+      { userIdx: 8, rating: 4, content: "Phù hợp nghỉ chân giữa lịch trình tham quan quận 1." },
+    ],
+  },
+  {
+    name: "Chợ Đêm Phú Quốc",
+    region: "Kiên Giang, Việt Nam",
+    category: "SHOPPING" as const,
+    featureLabel: "Quà biển buổi tối",
+    averageRating: 4.6, ratingCount: 1240, priceLevel: 420000,
+    latitude: 10.2165, longitude: 103.9598,
+    about: "Chợ đêm nhộn nhịp với hải sản, đặc sản đảo, đồ lưu niệm và các món ăn vặt phù hợp dạo tối ở Phú Quốc.",
+    images: [
+      "https://images.unsplash.com/photo-1532635241-17e820acc59f?w=1200&q=80",
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=80",
+      "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=1200&q=80",
+    ],
+    reviews: [
+      { userIdx: 1, rating: 5, content: "Buổi tối rất vui, nhiều món ăn vặt và quà từ ngọc trai, hải sản khô." },
+      { userIdx: 4, rating: 4, content: "Nên đi chậm để chọn quán, giá cả khá đa dạng." },
+      { userIdx: 7, rating: 5, content: "Không khí đảo về đêm rất đáng thử, đặc biệt là các món nướng." },
+    ],
+  },
+];
+
+const SEEDED_PLACES_DATA = [
+  ...PLACES_DATA.filter((place) => !REMOVED_PLACE_NAMES.has(place.name)),
+  ...ADDED_PLACES_DATA,
+];
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
   const storage = requireSupabaseConfig();
@@ -876,18 +1022,24 @@ async function main() {
     )
   );
   const ownerUser    = createdUsers[9];
+  const secondOwnerUser = createdUsers[10];
   const travelerUsers = createdUsers.slice(0, 9);
+  const secondOwnerPlaceIndexes = new Set(
+    Array.from({ length: 7 }, (_, offset) => SEEDED_PLACES_DATA.length - 7 + offset),
+  );
   console.log(`✅ Created ${createdUsers.length} users`);
 
   // ── Places + Images + Reviews ──────────────────────────────────────────────
   const createdPlaces: string[] = [];
   const createdPlaceCoverImages: string[] = [];
   const reviewData: Prisma.ReviewCreateManyInput[] = [];
+  const promotionSevenPlaceIdx = SEEDED_PLACES_DATA.length - 7;
+  const reviewTimelinePlaceIndexes = new Set([0, promotionSevenPlaceIdx]);
 
-  for (let i = 0; i < PLACES_DATA.length; i++) {
-    const p = PLACES_DATA[i];
+  for (let i = 0; i < SEEDED_PLACES_DATA.length; i++) {
+    const p = SEEDED_PLACES_DATA[i];
     const slug = p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 30);
-    console.log(`🏝️  [${i + 1}/${PLACES_DATA.length}] Seeding: ${p.name}`);
+    console.log(`🏝️  [${i + 1}/${SEEDED_PLACES_DATA.length}] Seeding: ${p.name}`);
 
     const uploadedImages = await uploadSeedImages({
       storage, bucket,
@@ -897,7 +1049,7 @@ async function main() {
 
     const place = await prisma.place.create({
       data: {
-        ownerId: ownerUser.id,
+        ownerId: secondOwnerPlaceIndexes.has(i) ? secondOwnerUser.id : ownerUser.id,
         name: p.name, region: p.region, category: p.category,
         coverImageUrl: uploadedImages[0],
         featureLabel: p.featureLabel,
@@ -916,19 +1068,51 @@ async function main() {
       });
     }
 
+    const seededReviews = reviewTimelinePlaceIndexes.has(i)
+      ? p.reviews.slice(0, 2)
+      : p.reviews;
     reviewData.push(
-      ...p.reviews.map((rev) => ({
+      ...seededReviews.map((rev, reviewIdx) => ({
         placeId: place.id,
         userId: travelerUsers[rev.userIdx].id,
         rating: rev.rating,
         content: rev.content,
+        createdAt: reviewTimelinePlaceIndexes.has(i)
+          ? new Date(Date.UTC(2026, 4, 30, 8 + reviewIdx, 0, 0))
+          : undefined,
       })),
     );
 
-    // First 3 travelers favorite every place
-    for (let fi = 0; fi < Math.min(3, travelerUsers.length); fi++) {
+  }
+
+  const favoritePlaceIndexesByTraveler = [
+    [0, 1, 2, 3, 4, 5],
+    [6, 22],
+    [7, 23],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+  ];
+  const favoriteSaveAt = (userIdx: number, placeIdx: number) =>
+    new Date(Date.UTC(2026, 4, 20 + userIdx, 8 + (placeIdx % 8), 0, 0));
+  const prePromotionFavoriteSaveAtByKey = new Map<string, Date>([
+    ["0:0", new Date("2026-05-30T09:00:00.000Z")],
+  ]);
+
+  for (let userIdx = 0; userIdx < travelerUsers.length; userIdx++) {
+    for (const placeIdx of favoritePlaceIndexesByTraveler[userIdx] ?? []) {
+      const placeId = createdPlaces[placeIdx];
+      if (!placeId) continue;
       await prisma.favorite.create({
-        data: { userId: travelerUsers[fi].id, placeId: place.id },
+        data: {
+          userId: travelerUsers[userIdx].id,
+          placeId,
+          saveAt: prePromotionFavoriteSaveAtByKey.get(`${userIdx}:${placeIdx}`) ?? favoriteSaveAt(userIdx, placeIdx),
+        },
       });
     }
   }
@@ -941,24 +1125,171 @@ async function main() {
 
   // ── Promotions ─────────────────────────────────────────────────────────────
   console.log("🎫 Creating promotions...");
+  const demoReviewAtFirstPlace = await prisma.review.findFirstOrThrow({
+    where: { placeId: createdPlaces[0], userId: travelerUsers[0].id },
+    select: { id: true },
+  });
+  const demoReviewAtThirdPlace = await prisma.review.findFirstOrThrow({
+    where: { placeId: createdPlaces[2], userId: travelerUsers[0].id },
+    select: { id: true },
+  });
+  await prisma.reviewLike.createMany({
+    data: [
+      { reviewId: demoReviewAtFirstPlace.id, userId: ownerUser.id },
+      { reviewId: demoReviewAtThirdPlace.id, userId: travelerUsers[2].id },
+    ],
+    skipDuplicates: true,
+  });
+
   const promoTemplates = [
-    { title: "Giảm 20% Tour Khám Phá",   isActive: true,  startDate: "01/06/2025", endDate: "30/06/2025", days: ["T2","T3","T4","T5","T6"], startTime: "08:00 AM", endTime: "05:00 PM", specificTime: true  },
-    { title: "Combo Gia Đình - Tiết Kiệm 30%", isActive: true,  startDate: "15/06/2025", endDate: "15/08/2025", days: ["T7","CN"],            startTime: "09:00 AM", endTime: "06:00 PM", specificTime: true  },
-    { title: "Khuyến Mãi Mùa Hè Rực Rỡ", isActive: false, startDate: "01/07/2025", endDate: "31/08/2025", days: ["T2","T3","T4","T5","T6","T7","CN"], startTime: "", endTime: "", specificTime: false },
-    { title: "Giảm 15% Đặt Sớm",          isActive: true,  startDate: "01/05/2025", endDate: "31/12/2025", days: ["T2","T3","T4","T5","T6"], startTime: "10:00 AM", endTime: "02:00 PM", specificTime: true  },
-    { title: "Happy Hour Cuối Tuần",       isActive: true,  startDate: "01/06/2025", endDate: "30/09/2025", days: ["T7","CN"],                startTime: "04:00 PM", endTime: "08:00 PM", specificTime: true  },
+    { title: "Giảm 20% Tour Khám Phá",        isActive: true,  startDate: "01/06/2026", endDate: "30/06/2026", days: ["T2","T3","T4","T5","T6"], startTime: "08:00 AM", endTime: "05:00 PM", specificTime: true  },
+    { title: "Combo Gia Đình - Tiết Kiệm 30%", isActive: true,  startDate: "15/06/2026", endDate: "15/08/2026", days: ["T7","CN"],                startTime: "09:00 AM", endTime: "06:00 PM", specificTime: true  },
+    { title: "Khuyến Mãi Mùa Hè Rực Rỡ",      isActive: false, startDate: "01/07/2026", endDate: "31/08/2026", days: ["T2","T3","T4","T5","T6","T7","CN"], startTime: "", endTime: "", specificTime: false },
+    { title: "Giảm 15% Đặt Sớm",              isActive: false, startDate: "01/05/2026", endDate: "31/12/2026", days: ["T2","T3","T4","T5","T6"], startTime: "10:00 AM", endTime: "02:00 PM", specificTime: true  },
+    { title: "Happy Hour Cuối Tuần",           isActive: false, startDate: "01/06/2026", endDate: "30/09/2026", days: ["T7","CN"],                startTime: "04:00 PM", endTime: "08:00 PM", specificTime: true  },
+    { title: "Ưu Đãi Nhóm Bạn",                isActive: false, startDate: "10/06/2026", endDate: "10/10/2026", days: ["T6","T7","CN"],           startTime: "03:00 PM", endTime: "09:00 PM", specificTime: true  },
+    { title: "Voucher Khách Quay Lại",         isActive: false, startDate: "01/08/2026", endDate: "31/12/2026", days: ["T2","T3","T4","T5"],      startTime: "", endTime: "", specificTime: false },
+    { title: "Ưu Đãi Nghỉ Dưỡng Cuối Tuần",    isActive: true,  startDate: "01/06/2026", endDate: "31/08/2026", days: ["T6","T7","CN"],           startTime: "02:00 PM", endTime: "10:00 PM", specificTime: true  },
+    { title: "Mua Sắm Tặng Voucher",           isActive: false, startDate: "01/07/2026", endDate: "30/09/2026", days: ["T2","T3","T4","T5","T6"], startTime: "10:00 AM", endTime: "09:00 PM", specificTime: true  },
+    { title: "Giảm Giá Quà Địa Phương",        isActive: false, startDate: "15/07/2026", endDate: "15/10/2026", days: ["T7","CN"],                startTime: "", endTime: "", specificTime: false },
   ];
 
-  await prisma.promotion.createMany({
-    data: createdPlaces.slice(0, 5).map((placeId, idx) => ({
-      placeId,
-      ...promoTemplates[idx],
-    })),
-  });
+  const ownerOnePromotionPlaceIndexes = [0, 0, 0, 1, 2, 3, 4];
+  const ownerTwoPromotionPlaceIndexes = Array.from(secondOwnerPlaceIndexes).slice(0, 3);
+  const promotionPlaceIndexes = [...ownerOnePromotionPlaceIndexes, ...ownerTwoPromotionPlaceIndexes];
+  const promotionActiveAtByIndex: Record<number, Date> = {
+    0: new Date("2026-06-01T01:00:00.000Z"),
+    1: new Date("2026-06-15T02:00:00.000Z"),
+    7: new Date("2026-06-01T03:00:00.000Z"),
+  };
+  const createdPromotions: Prisma.PromotionGetPayload<Record<string, never>>[] = [];
+  for (let idx = 0; idx < promoTemplates.length; idx++) {
+    const activeAt = promoTemplates[idx].isActive
+      ? promotionActiveAtByIndex[idx] ?? new Date("2026-06-01T00:00:00.000Z")
+      : null;
+    createdPromotions.push(
+      await prisma.promotion.create({
+        data: {
+          placeId: createdPlaces[promotionPlaceIndexes[idx]],
+          activeAt,
+          ...promoTemplates[idx],
+        },
+      }),
+    );
+  }
+
+  const postActiveFavoriteSeeds = [
+    { promotionIdx: 0, userIndexes: [1, 2, 3, 4] },
+    { promotionIdx: 7, userIndexes: [0, 5, 6, 7] },
+  ];
+  let postActiveFavoriteCount = 0;
+  for (const seed of postActiveFavoriteSeeds) {
+    const promotion = createdPromotions[seed.promotionIdx];
+    const activeAt = promotion?.activeAt;
+    const placeId = promotion?.placeId;
+    if (!activeAt || !placeId) continue;
+
+    const result = await prisma.favorite.createMany({
+      data: seed.userIndexes.map((userIdx, offset) => ({
+        userId: travelerUsers[userIdx].id,
+        placeId,
+        saveAt: new Date(activeAt.getTime() + (offset + 1) * 6 * 60 * 60 * 1000),
+      })),
+      skipDuplicates: true,
+    });
+    postActiveFavoriteCount += result.count;
+  }
+
+  const expectedPromotionFavoriteTimelines = [
+    { promotionIdx: 0, beforeActive: 1, afterActive: 4 },
+    { promotionIdx: 7, beforeActive: 0, afterActive: 4 },
+  ];
+  for (const expected of expectedPromotionFavoriteTimelines) {
+    const promotion = createdPromotions[expected.promotionIdx];
+    if (!promotion.activeAt) {
+      throw new Error(`Promotion index ${expected.promotionIdx} must be active for favorite timeline seed`);
+    }
+
+    const [beforeActive, afterActive, demoFavorite] = await Promise.all([
+      prisma.favorite.count({
+        where: { placeId: promotion.placeId, saveAt: { lt: promotion.activeAt } },
+      }),
+      prisma.favorite.count({
+        where: { placeId: promotion.placeId, saveAt: { gt: promotion.activeAt } },
+      }),
+      prisma.favorite.findUnique({
+        where: { userId_placeId: { userId: travelerUsers[0].id, placeId: promotion.placeId } },
+      }),
+    ]);
+    if (
+      beforeActive !== expected.beforeActive ||
+      afterActive !== expected.afterActive ||
+      !demoFavorite
+    ) {
+      throw new Error(
+        `Promotion index ${expected.promotionIdx} favorite seed mismatch: ` +
+        `before=${beforeActive}/${expected.beforeActive}, ` +
+        `after=${afterActive}/${expected.afterActive}, ` +
+        `demoFavorite=${Boolean(demoFavorite)}`,
+      );
+    }
+  }
+
+  const promotionReviewTimelines = [
+    { promotionIdx: 0, targetTotal: 10, addAfterActive: 8 },
+    { promotionIdx: 7, targetTotal: 16, addAfterActive: 14 },
+  ];
+  let postActiveReviewCount = 0;
+  for (const timeline of promotionReviewTimelines) {
+    const promotion = createdPromotions[timeline.promotionIdx];
+    if (!promotion.activeAt) {
+      throw new Error(`Promotion index ${timeline.promotionIdx} must be active for review timeline seed`);
+    }
+
+    await prisma.review.createMany({
+      data: Array.from({ length: timeline.addAfterActive }, (_, offset) => ({
+        placeId: promotion.placeId,
+        userId: travelerUsers[offset % travelerUsers.length].id,
+        rating: 4 + (offset % 2),
+        content: `Review seeded after promotion index ${timeline.promotionIdx} activation #${offset + 1}`,
+        createdAt: new Date(promotion.activeAt!.getTime() + (offset + 1) * 60 * 60 * 1000),
+      })),
+    });
+    postActiveReviewCount += timeline.addAfterActive;
+
+    const [beforeActive, totalReviews, reviewImages] = await Promise.all([
+      prisma.review.count({
+        where: { placeId: promotion.placeId, createdAt: { lt: promotion.activeAt } },
+      }),
+      prisma.review.count({ where: { placeId: promotion.placeId } }),
+      prisma.reviewImage.count({
+        where: {
+          review: {
+            placeId: promotion.placeId,
+            createdAt: { gt: promotion.activeAt },
+          },
+        },
+      }),
+    ]);
+    if (beforeActive !== 2 || totalReviews !== timeline.targetTotal || reviewImages !== 0) {
+      throw new Error(
+        `Promotion index ${timeline.promotionIdx} review seed mismatch: ` +
+        `before=${beforeActive}/2, total=${totalReviews}/${timeline.targetTotal}, ` +
+        `postActiveImages=${reviewImages}/0`,
+      );
+    }
+  }
 
   // Trips for GET /api/v1/users/me/trips
   console.log("Creating sample trips...");
   const demoUser = travelerUsers[0];
+  const seedToday = startOfUtcDay(new Date());
+  const sampleTripStartDate = addUtcDays(seedToday, 7);
+  const weekendTripStartDate = addUtcDays(seedToday, 5);
+  const pendingInviteTripStartDate = addUtcDays(seedToday, 30);
+  const inviteCreatedAt = withUtcTime(seedToday, 3, 30);
+  const upcomingSampleCreatedAt = withUtcTime(seedToday, 1);
+  const upcomingWeekendCreatedAt = withUtcTime(seedToday, 2);
   let sampleTrip: Prisma.TripGetPayload<Record<string, never>>;
 
   try {
@@ -969,17 +1300,17 @@ async function main() {
       destination: "Quảng Ninh - Quảng Nam - Huế - Hà Giang - Yên Bái",
       currentHotelName: "Khách sạn Hội An Riverside",
       currentHotelPlaceId: createdPlaces[1],
-      startDate: new Date("2026-11-12T00:00:00.000Z"),
-      endDate: new Date("2026-11-18T00:00:00.000Z"),
+      startDate: sampleTripStartDate,
+      endDate: addUtcDays(sampleTripStartDate, 6),
       budget: 8000000,
       totalBudgetPerPerson: 8000000,
       coverImageUrl: createdPlaceCoverImages[1],
       currency: "VND",
       members: {
         create: [
-          { userId: travelerUsers[0].id, status: "ACTIVE", joinedAt: new Date("2026-11-12T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-11-12T00:00:00.000Z") },
-          { userId: travelerUsers[1].id, status: "ACTIVE", joinedAt: new Date("2026-11-12T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-11-12T00:00:00.000Z") },
-          { userId: travelerUsers[2].id, status: "ACTIVE", joinedAt: new Date("2026-11-12T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-11-12T00:00:00.000Z") },
+          { userId: travelerUsers[0].id, status: "ACTIVE", joinedAt: sampleTripStartDate, inviteAcceptedAt: sampleTripStartDate },
+          { userId: travelerUsers[1].id, status: "ACTIVE", joinedAt: sampleTripStartDate, inviteAcceptedAt: sampleTripStartDate },
+          { userId: travelerUsers[2].id, status: "ACTIVE", joinedAt: sampleTripStartDate, inviteAcceptedAt: sampleTripStartDate },
         ],
       },
       days: {
@@ -987,31 +1318,31 @@ async function main() {
           {
             dayNumber: 1,
             title: "Ngày 1: Khám phá Quảng Ninh và Hội An",
-            date: new Date("2026-11-12T00:00:00.000Z"),
+            date: sampleTripStartDate,
             estimatedBudget: 625000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[0],
-                  title: PLACES_DATA[0].name,
+                  title: SEEDED_PLACES_DATA[0].name,
                   description: "Điểm tham quan nổi bật được chọn cho lịch trình di sản.",
                   imageUrl: createdPlaceCoverImages[0],
                   period: "MORNING",
                   scheduledTime: "09:00",
                   estimatedCost: 0,
-                  rating: PLACES_DATA[0].averageRating,
+                  rating: SEEDED_PLACES_DATA[0].averageRating,
                   sortOrder: 1,
                 },
                 {
                   placeId: createdPlaces[1],
-                  title: PLACES_DATA[1].name,
+                  title: SEEDED_PLACES_DATA[1].name,
                   description: "Điểm dạo chơi văn hóa được chọn cho lịch trình di sản.",
                   imageUrl: createdPlaceCoverImages[1],
                   period: "AFTERNOON",
                   scheduledTime: "12:00",
                   estimatedCost: 625000,
-                  rating: PLACES_DATA[1].averageRating,
+                  rating: SEEDED_PLACES_DATA[1].averageRating,
                   sortOrder: 2,
                 },
               ],
@@ -1020,31 +1351,31 @@ async function main() {
           {
             dayNumber: 2,
             title: "Ngày 2: Cố đô Huế và cao nguyên đá",
-            date: new Date("2026-11-13T00:00:00.000Z"),
+            date: addUtcDays(sampleTripStartDate, 1),
             estimatedBudget: 1750000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[2],
-                  title: PLACES_DATA[2].name,
+                  title: SEEDED_PLACES_DATA[2].name,
                   description: "Điểm đến lịch sử được chọn cho ngày khám phá văn hóa.",
                   imageUrl: createdPlaceCoverImages[2],
                   period: "MORNING",
                   scheduledTime: "08:30",
                   estimatedCost: 875000,
-                  rating: PLACES_DATA[2].averageRating,
+                  rating: SEEDED_PLACES_DATA[2].averageRating,
                   sortOrder: 1,
                 },
                 {
                   placeId: createdPlaces[3],
-                  title: PLACES_DATA[3].name,
+                  title: SEEDED_PLACES_DATA[3].name,
                   description: "Cung đường cảnh quan được chọn cho lịch trình trải nghiệm.",
                   imageUrl: createdPlaceCoverImages[3],
                   period: "AFTERNOON",
                   scheduledTime: "14:00",
                   estimatedCost: 875000,
-                  rating: PLACES_DATA[3].averageRating,
+                  rating: SEEDED_PLACES_DATA[3].averageRating,
                   sortOrder: 2,
                 },
               ],
@@ -1053,20 +1384,20 @@ async function main() {
           {
             dayNumber: 3,
             title: "Ngày 3: Mùa vàng vùng cao",
-            date: new Date("2026-11-14T00:00:00.000Z"),
+            date: addUtcDays(sampleTripStartDate, 2),
             estimatedBudget: 750000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[4],
-                  title: PLACES_DATA[4].name,
+                  title: SEEDED_PLACES_DATA[4].name,
                   description: "Điểm ngắm cảnh ruộng bậc thang được chọn cho ngày thư giãn.",
                   imageUrl: createdPlaceCoverImages[4],
                   period: "MORNING",
                   scheduledTime: "08:30",
                   estimatedCost: 750000,
-                  rating: PLACES_DATA[4].averageRating,
+                  rating: SEEDED_PLACES_DATA[4].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1075,20 +1406,20 @@ async function main() {
           {
             dayNumber: 4,
             title: "Ngày 4: Trải nghiệm ẩm thực địa phương",
-            date: new Date("2026-11-15T00:00:00.000Z"),
+            date: addUtcDays(sampleTripStartDate, 3),
             estimatedBudget: 875000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[5],
-                  title: PLACES_DATA[5].name,
+                  title: SEEDED_PLACES_DATA[5].name,
                   description: "Điểm ăn uống được chọn để trải nghiệm hương vị địa phương.",
                   imageUrl: createdPlaceCoverImages[5],
                   period: "AFTERNOON",
                   scheduledTime: "12:30",
                   estimatedCost: 875000,
-                  rating: PLACES_DATA[5].averageRating,
+                  rating: SEEDED_PLACES_DATA[5].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1097,20 +1428,20 @@ async function main() {
           {
             dayNumber: 5,
             title: "Ngày 5: Vùng cao mùa vàng",
-            date: new Date("2026-11-16T00:00:00.000Z"),
+            date: addUtcDays(sampleTripStartDate, 4),
             estimatedBudget: 1000000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[4],
-                  title: PLACES_DATA[4].name,
+                  title: SEEDED_PLACES_DATA[4].name,
                   description: "Điểm ngắm cảnh được chọn cho hành trình vùng cao.",
                   imageUrl: createdPlaceCoverImages[4],
                   period: "MORNING",
                   scheduledTime: "09:30",
                   estimatedCost: 1000000,
-                  rating: PLACES_DATA[4].averageRating,
+                  rating: SEEDED_PLACES_DATA[4].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1119,20 +1450,20 @@ async function main() {
           {
             dayNumber: 6,
             title: "Ngày 6: Điểm hẹn địa phương",
-            date: new Date("2026-11-17T00:00:00.000Z"),
+            date: addUtcDays(sampleTripStartDate, 5),
             estimatedBudget: 750000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[6],
-                  title: PLACES_DATA[6].name,
+                  title: SEEDED_PLACES_DATA[6].name,
                   description: "Điểm đến được yêu thích được chọn cho lịch trình trong ngày.",
                   imageUrl: createdPlaceCoverImages[6],
                   period: "AFTERNOON",
                   scheduledTime: "15:00",
                   estimatedCost: 750000,
-                  rating: PLACES_DATA[6].averageRating,
+                  rating: SEEDED_PLACES_DATA[6].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1141,20 +1472,20 @@ async function main() {
           {
             dayNumber: 7,
             title: "Ngày 7: Kết thúc hành trình",
-            date: new Date("2026-11-18T00:00:00.000Z"),
+            date: addUtcDays(sampleTripStartDate, 6),
             estimatedBudget: 625000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[8],
-                  title: PLACES_DATA[8].name,
+                  title: SEEDED_PLACES_DATA[8].name,
                   description: "Điểm dừng cuối được chọn để khép lại chuyến đi.",
                   imageUrl: createdPlaceCoverImages[8],
                   period: "MORNING",
                   scheduledTime: "09:00",
                   estimatedCost: 625000,
-                  rating: PLACES_DATA[8].averageRating,
+                  rating: SEEDED_PLACES_DATA[8].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1176,16 +1507,16 @@ async function main() {
       title: "Cuối tuần khám phá ẩm thực Việt",
       destination: "Việt Nam",
       currentHotelName: "Khách sạn Trung Tâm Boutique",
-      startDate: new Date("2026-12-05T00:00:00.000Z"),
-      endDate: new Date("2026-12-07T00:00:00.000Z"),
+      startDate: weekendTripStartDate,
+      endDate: addUtcDays(weekendTripStartDate, 2),
       budget: 4500000,
       totalBudgetPerPerson: 4500000,
       coverImageUrl: createdPlaceCoverImages[5],
       currency: "VND",
       members: {
         create: [
-          { userId: travelerUsers[0].id, status: "ACTIVE", joinedAt: new Date("2026-12-05T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-12-05T00:00:00.000Z") },
-          { userId: travelerUsers[3].id, status: "ACTIVE", joinedAt: new Date("2026-12-05T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-12-05T00:00:00.000Z") },
+          { userId: travelerUsers[0].id, status: "ACTIVE", joinedAt: weekendTripStartDate, inviteAcceptedAt: weekendTripStartDate },
+          { userId: travelerUsers[3].id, status: "ACTIVE", joinedAt: weekendTripStartDate, inviteAcceptedAt: weekendTripStartDate },
         ],
       },
       days: {
@@ -1193,20 +1524,20 @@ async function main() {
           {
             dayNumber: 1,
             title: "Ngày 1: Bữa tối địa phương",
-            date: new Date("2026-12-05T00:00:00.000Z"),
+            date: weekendTripStartDate,
             estimatedBudget: 1125000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[5],
-                  title: PLACES_DATA[5].name,
+                  title: SEEDED_PLACES_DATA[5].name,
                   description: "Quán ăn địa phương được chọn cho bữa tối đầu tiên.",
                   imageUrl: createdPlaceCoverImages[5],
                   period: "EVENING",
                   scheduledTime: "18:30",
                   estimatedCost: 1125000,
-                  rating: PLACES_DATA[5].averageRating,
+                  rating: SEEDED_PLACES_DATA[5].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1215,20 +1546,20 @@ async function main() {
           {
             dayNumber: 2,
             title: "Ngày 2: Ăn trưa và dạo phố",
-            date: new Date("2026-12-06T00:00:00.000Z"),
+            date: addUtcDays(weekendTripStartDate, 1),
             estimatedBudget: 875000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[7],
-                  title: PLACES_DATA[7].name,
+                  title: SEEDED_PLACES_DATA[7].name,
                   description: "Điểm dừng ẩm thực được chọn cho buổi trưa.",
                   imageUrl: createdPlaceCoverImages[7],
                   period: "AFTERNOON",
                   scheduledTime: "13:00",
                   estimatedCost: 875000,
-                  rating: PLACES_DATA[7].averageRating,
+                  rating: SEEDED_PLACES_DATA[7].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1237,20 +1568,20 @@ async function main() {
           {
             dayNumber: 3,
             title: "Ngày 3: Cà phê và mua quà",
-            date: new Date("2026-12-07T00:00:00.000Z"),
+            date: addUtcDays(weekendTripStartDate, 2),
             estimatedBudget: 700000,
             isExpanded: true,
             activities: {
               create: [
                 {
                   placeId: createdPlaces[9],
-                  title: PLACES_DATA[9].name,
+                  title: SEEDED_PLACES_DATA[9].name,
                   description: "Điểm dừng nhẹ nhàng được chọn trước khi kết thúc chuyến đi.",
                   imageUrl: createdPlaceCoverImages[9],
                   period: "MORNING",
                   scheduledTime: "10:00",
                   estimatedCost: 700000,
-                  rating: PLACES_DATA[9].averageRating,
+                  rating: SEEDED_PLACES_DATA[9].averageRating,
                   sortOrder: 1,
                 },
               ],
@@ -1267,15 +1598,15 @@ async function main() {
       title: "Rủ rê săn mây Đà Lạt",
       destination: "Đà Lạt, Lâm Đồng",
       currentHotelName: "Homestay Đồi Thông",
-      startDate: new Date("2027-01-10T00:00:00.000Z"),
-      endDate: new Date("2027-01-12T00:00:00.000Z"),
+      startDate: pendingInviteTripStartDate,
+      endDate: addUtcDays(pendingInviteTripStartDate, 2),
       budget: 3600000,
       totalBudgetPerPerson: 1800000,
       coverImageUrl: createdPlaceCoverImages[6],
       currency: "VND",
       members: {
         create: [
-          { userId: travelerUsers[3].id, status: "ACTIVE", joinedAt: new Date("2026-12-20T00:00:00.000Z"), inviteAcceptedAt: new Date("2026-12-20T00:00:00.000Z") },
+          { userId: travelerUsers[3].id, status: "ACTIVE", joinedAt: inviteCreatedAt, inviteAcceptedAt: inviteCreatedAt },
           { userId: demoUser.id, invitedById: travelerUsers[3].id, status: "PENDING" },
         ],
       },
@@ -1296,12 +1627,12 @@ async function main() {
         itineraryName: pendingInviteTrip.title,
         days: 3,
       },
-      createdAt: new Date("2026-12-20T03:30:00.000Z"),
+      createdAt: inviteCreatedAt,
       recipients: {
         create: {
           userId: demoUser.id,
           isRead: false,
-          createdAt: new Date("2026-12-20T03:30:00.000Z"),
+          createdAt: inviteCreatedAt,
         },
       },
     },
@@ -1312,14 +1643,15 @@ async function main() {
       title: "Review liked",
       body: "Someone liked your review.",
       data: {
-        placeName: PLACES_DATA[0].name,
+        placeName: SEEDED_PLACES_DATA[0].name,
+        reviewId: demoReviewAtFirstPlace.id,
       },
-      createdAt: new Date("2026-11-25T09:15:00.000Z"),
+      createdAt: withUtcTime(seedToday, 9, 15),
       recipients: {
         create: {
           userId: demoUser.id,
           isRead: false,
-          createdAt: new Date("2026-11-25T09:15:00.000Z"),
+          createdAt: withUtcTime(seedToday, 9, 15),
         },
       },
     },
@@ -1332,33 +1664,13 @@ async function main() {
         itineraryName: sampleTrip.title,
         days: 7,
       },
-      createdAt: new Date("2026-11-10T01:00:00.000Z"),
+      createdAt: upcomingSampleCreatedAt,
       recipients: {
         create: {
           userId: demoUser.id,
           isRead: true,
-          readAt: new Date("2026-11-10T01:00:00.000Z"),
-          createdAt: new Date("2026-11-10T01:00:00.000Z"),
-        },
-      },
-    },
-    {
-      type: "promotion",
-      actor: { connect: { id: ownerUser.id } },
-      targetId: createdPlaces[1],
-      title: "New promotion near your trip",
-      body: "A place in your itinerary has a new travel deal.",
-      data: {
-        placeId: createdPlaces[1],
-        placeName: PLACES_DATA[1].name,
-        discountLabel: "Save 20% on guided tours",
-      },
-      createdAt: new Date("2026-11-09T08:20:00.000Z"),
-      recipients: {
-        create: {
-          userId: demoUser.id,
-          isRead: false,
-          createdAt: new Date("2026-11-09T08:20:00.000Z"),
+          readAt: upcomingSampleCreatedAt,
+          createdAt: upcomingSampleCreatedAt,
         },
       },
     },
@@ -1366,19 +1678,19 @@ async function main() {
       type: "like_comment",
       actor: { connect: { id: travelerUsers[2].id } },
       targetId: createdPlaces[2],
-      title: "New comment on your review",
-      body: "Someone replied to your review.",
+      title: "Review liked",
+      body: "Someone liked your review.",
       data: {
         placeId: createdPlaces[2],
-        placeName: PLACES_DATA[2].name,
-        commentPreview: "Thanks for the tip, this helped my plan.",
+        placeName: SEEDED_PLACES_DATA[2].name,
+        reviewId: demoReviewAtThirdPlace.id,
       },
-      createdAt: new Date("2026-11-07T11:10:00.000Z"),
+      createdAt: withUtcTime(seedToday, 11, 10),
       recipients: {
         create: {
           userId: demoUser.id,
           isRead: false,
-          createdAt: new Date("2026-11-07T11:10:00.000Z"),
+          createdAt: withUtcTime(seedToday, 11, 10),
         },
       },
     },
@@ -1393,39 +1705,56 @@ async function main() {
         hotelName: weekendTrip.currentHotelName,
         days: 5,
       },
-      createdAt: new Date("2026-11-06T02:00:00.000Z"),
+      createdAt: upcomingWeekendCreatedAt,
       recipients: {
         create: {
           userId: demoUser.id,
           isRead: true,
-          readAt: new Date("2026-11-06T02:30:00.000Z"),
-          createdAt: new Date("2026-11-06T02:00:00.000Z"),
-        },
-      },
-    },
-    {
-      type: "promotion",
-      actor: { connect: { id: ownerUser.id } },
-      targetId: createdPlaces[5],
-      title: "Dining deal available",
-      body: "A dining spot you saved has a limited-time offer.",
-      data: {
-        placeId: createdPlaces[5],
-        placeName: PLACES_DATA[5].name,
-        discountLabel: "Weekend combo for two",
-      },
-      createdAt: new Date("2026-11-05T10:00:00.000Z"),
-      recipients: {
-        create: {
-          userId: demoUser.id,
-          isRead: false,
-          createdAt: new Date("2026-11-05T10:00:00.000Z"),
+          readAt: withUtcTime(seedToday, 2, 30),
+          createdAt: upcomingWeekendCreatedAt,
         },
       },
     },
   ];
+  let createdNotificationCount = 0;
   for (const notification of notificationData) {
     await prisma.notification.create({ data: notification });
+    createdNotificationCount++;
+  }
+
+  const activePromotions = createdPromotions.filter((promotion) => promotion.isActive);
+  for (let idx = 0; idx < activePromotions.length; idx++) {
+    const promotion = activePromotions[idx];
+    const placeIdx = promotionPlaceIndexes[createdPromotions.findIndex((p) => p.id === promotion.id)];
+    const favorites = await prisma.favorite.findMany({
+      where: { placeId: promotion.placeId },
+      select: { userId: true },
+    });
+    if (favorites.length === 0) continue;
+
+    await prisma.notification.create({
+      data: {
+        type: "promotion",
+        actor: { connect: { id: secondOwnerPlaceIndexes.has(placeIdx) ? secondOwnerUser.id : ownerUser.id } },
+        targetId: promotion.placeId,
+        title: promotion.title,
+        body: "A place you saved has a new promotion.",
+        data: {
+          promotionId: promotion.id,
+          placeId: promotion.placeId,
+          placeName: SEEDED_PLACES_DATA[placeIdx].name,
+        },
+        createdAt: new Date(Date.UTC(2026, 5, 3, 8 + idx, 0, 0)),
+        recipients: {
+          create: favorites.map((favorite) => ({
+            userId: favorite.userId,
+            isRead: false,
+            createdAt: new Date(Date.UTC(2026, 5, 3, 8 + idx, 0, 0)),
+          })),
+        },
+      },
+    });
+    createdNotificationCount++;
   }
 
   const tripStats = {
@@ -1433,11 +1762,14 @@ async function main() {
     days: 10,
     activities: 12,
     members: 7,
-    notifications: notificationData.length,
+    notifications: createdNotificationCount,
   };
-  const totalReviews = PLACES_DATA.reduce((a, p) => a + p.reviews.length, 0);
+  const [totalReviews, totalFavorites] = await Promise.all([
+    prisma.review.count(),
+    prisma.favorite.count(),
+  ]);
   const countCategory = (category: string) =>
-    PLACES_DATA.filter(p => String(p.category) === category).length;
+    SEEDED_PLACES_DATA.filter(p => String(p.category) === category).length;
   const attractions  = countCategory("ATTRACTIONS");
   const dining       = countCategory("DINING");
   const festivals    = countCategory("FESTIVALS");
@@ -1446,14 +1778,14 @@ async function main() {
 
   console.log("\n✅ Seed completed successfully!");
   console.log(`📊 Summary:`);
-  console.log(`   👥 ${createdUsers.length} users (${travelerUsers.length} travelers + 1 owner + 1 admin)`);
-  console.log(`   🏝️  ${PLACES_DATA.length} places (${attractions} ATTRACTIONS · ${dining} DINING · ${festivals} FESTIVALS · ${stays} STAYS · ${shopping} SHOPPING)`);
-  console.log(`   ⭐ ${totalReviews} reviews`);
-  console.log(`   🎫 5 promotions`);
-  console.log(`   ❤️  ${createdPlaces.length * 3} favorites`);
+  console.log(`   👥 ${createdUsers.length} users (${travelerUsers.length} travelers + 2 owners + 1 admin)`);
+  console.log(`   🏝️  ${SEEDED_PLACES_DATA.length} places (${attractions} ATTRACTIONS · ${dining} DINING · ${festivals} FESTIVALS · ${stays} STAYS · ${shopping} SHOPPING)`);
+  console.log(`   ⭐ ${totalReviews} reviews (${postActiveReviewCount} seeded after promotion activation)`);
+  console.log(`   🎫 ${createdPromotions.length} promotions (${activePromotions.length} active)`);
+  console.log(`   ❤️  ${totalFavorites} favorites`);
   console.log(`   trips: ${tripStats.trips} (${sampleTrip.title}, ${weekendTrip.title}, ${pendingInviteTrip.title})`);
   console.log(`   trip days: ${tripStats.days}, activities: ${tripStats.activities}, members: ${tripStats.members}`);
-  console.log(`   notifications: ${tripStats.notifications} for ${demoUser.email}`);
+  console.log(`   notifications: ${tripStats.notifications} total notification rows`);
 }
 
 main()

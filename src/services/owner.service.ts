@@ -43,6 +43,21 @@ const createPlaceSchema = z.object({
 
 const updatePlaceSchema = createPlaceSchema.partial();
 
+type OwnerDashboardPlace = {
+  id: string;
+  name: string;
+  coverImageUrl: string;
+  averageRating: number;
+  ratingCount: number;
+  promotions: {
+    id: string;
+    title: string;
+    isActive: boolean;
+    activeAt: Date | null;
+    createdAt: Date;
+  }[];
+};
+
 function toOwnerPlaceDto(p: {
   id: string;
   name: string;
@@ -96,6 +111,7 @@ function toPromotionDto(p: {
   id: string;
   title: string;
   isActive: boolean;
+  activeAt: Date | null;
   startDate: string;
   endDate: string;
   days: string[];
@@ -107,6 +123,7 @@ function toPromotionDto(p: {
     id: p.id,
     title: p.title,
     isActive: p.isActive,
+    activeAt: p.activeAt?.toISOString() ?? null,
     schedule: {
       startDate: p.startDate,
       endDate: p.endDate,
@@ -136,6 +153,7 @@ async function createPromotionsForPlace(
       placeId,
       title: item.title,
       isActive: item.isActive ?? true,
+      activeAt: (item.isActive ?? true) ? new Date() : null,
       startDate: item.schedule.startDate,
       endDate: item.schedule.endDate,
       days: item.schedule.days,
@@ -150,7 +168,177 @@ function uniqueUrls(urls: string[]) {
   return Array.from(new Set(urls));
 }
 
+function getMonthWindows(now = new Date()) {
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return { currentMonthStart, nextMonthStart, previousMonthStart };
+}
+
+function calculateGrowthPercent(current: number, previous: number) {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+function countByPlaceId<T extends { placeId: string; _count: { _all: number } }>(items: T[]) {
+  return new Map(items.map((item) => [item.placeId, item._count._all]));
+}
+
+function pickFeaturedActiveCampaignPlace(
+  places: OwnerDashboardPlace[],
+  savesByPlaceId: Map<string, number>
+) {
+  return places
+    .flatMap((place) =>
+      place.promotions
+        .filter((promotion) => promotion.isActive)
+        .map((promotion) => ({ place, promotion }))
+    )
+    .sort((a, b) => {
+      const saveDelta = (savesByPlaceId.get(b.place.id) ?? 0) - (savesByPlaceId.get(a.place.id) ?? 0);
+      if (saveDelta !== 0) return saveDelta;
+      return b.promotion.createdAt.getTime() - a.promotion.createdAt.getTime();
+    })[0]?.place;
+}
+
 export const ownerService = {
+  async getDashboard(ownerId: number) {
+    const places = await prisma.place.findMany({
+      where: { ownerId },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        coverImageUrl: true,
+        averageRating: true,
+        ratingCount: true,
+        promotions: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            isActive: true,
+            activeAt: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (places.length === 0) {
+      return {
+        summary: {
+          placeId: "",
+          placeName: "",
+          saves: 0,
+          growthPercent: 0,
+        },
+        campaigns: [],
+        places: [],
+      };
+    }
+
+    const placeIds = places.map((place) => place.id);
+    const { currentMonthStart, nextMonthStart, previousMonthStart } = getMonthWindows();
+
+    const [reviewTotals, favoriteTotals, currentMonthSaves, previousMonthSaves] = await Promise.all([
+      prisma.review.groupBy({
+        by: ["placeId"],
+        where: { placeId: { in: placeIds } },
+        _count: { _all: true },
+      }),
+      prisma.favorite.groupBy({
+        by: ["placeId"],
+        where: { placeId: { in: placeIds } },
+        _count: { _all: true },
+      }),
+      prisma.favorite.groupBy({
+        by: ["placeId"],
+        where: {
+          placeId: { in: placeIds },
+          saveAt: { gte: currentMonthStart, lt: nextMonthStart },
+        },
+        _count: { _all: true },
+      }),
+      prisma.favorite.groupBy({
+        by: ["placeId"],
+        where: {
+          placeId: { in: placeIds },
+          saveAt: { gte: previousMonthStart, lt: currentMonthStart },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const commentsByPlaceId = countByPlaceId(reviewTotals);
+    const savesByPlaceId = countByPlaceId(favoriteTotals);
+    const currentSavesByPlaceId = countByPlaceId(currentMonthSaves);
+    const previousSavesByPlaceId = countByPlaceId(previousMonthSaves);
+    const featuredPlace = pickFeaturedActiveCampaignPlace(places, savesByPlaceId);
+
+    const campaigns = await Promise.all(
+      places.flatMap((place) =>
+        place.promotions.map(async (promotion) => {
+          const activeAt = promotion.activeAt ?? promotion.createdAt;
+          const [commentsBefore, commentsAfter, savesBefore, savesAfter] = await Promise.all([
+            prisma.review.count({
+              where: { placeId: place.id, createdAt: { lt: activeAt } },
+            }),
+            prisma.review.count({
+              where: { placeId: place.id, createdAt: { gte: activeAt } },
+            }),
+            prisma.favorite.count({
+              where: { placeId: place.id, saveAt: { lt: activeAt } },
+            }),
+            prisma.favorite.count({
+              where: { placeId: place.id, saveAt: { gte: activeAt } },
+            }),
+          ]);
+
+          return {
+            campaignId: promotion.id,
+            campaignName: promotion.title,
+            placeId: place.id,
+            placeName: place.name,
+            comments: { before: commentsBefore, after: commentsAfter },
+            saves: { before: savesBefore, after: savesAfter },
+          };
+        })
+      )
+    );
+
+    const summary = featuredPlace
+      ? {
+          placeId: featuredPlace.id,
+          placeName: featuredPlace.name,
+          saves: savesByPlaceId.get(featuredPlace.id) ?? 0,
+          growthPercent: calculateGrowthPercent(
+            currentSavesByPlaceId.get(featuredPlace.id) ?? 0,
+            previousSavesByPlaceId.get(featuredPlace.id) ?? 0
+          ),
+        }
+      : {
+          placeId: "",
+          placeName: "",
+          saves: 0,
+          growthPercent: 0,
+        };
+
+    return {
+      summary,
+      campaigns,
+      places: places.map((place) => ({
+        id: place.id,
+        name: place.name,
+        imageUrl: place.coverImageUrl,
+        averageRating: place.averageRating,
+        ratingCount: place.ratingCount,
+        comments: commentsByPlaceId.get(place.id) ?? 0,
+        saves: savesByPlaceId.get(place.id) ?? 0,
+      })),
+    };
+  },
+
   async listPlaces(ownerId: number) {
     const list = await prisma.place.findMany({
       where: { ownerId },
@@ -265,6 +453,7 @@ export const ownerService = {
         placeId,
         title: data.title,
         isActive: data.isActive ?? true,
+        activeAt: (data.isActive ?? true) ? new Date() : null,
         startDate: data.schedule.startDate,
         endDate: data.schedule.endDate,
         days: data.schedule.days,
@@ -301,6 +490,10 @@ export const ownerService = {
       data: {
         ...(data.title !== undefined ? { title: data.title } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        ...(data.isActive === true && (!promo.isActive || promo.activeAt === null)
+          ? { activeAt: new Date() }
+          : {}),
+        ...(data.isActive === false ? { activeAt: null } : {}),
         ...(data.schedule?.startDate !== undefined ? { startDate: data.schedule.startDate } : {}),
         ...(data.schedule?.endDate !== undefined ? { endDate: data.schedule.endDate } : {}),
         ...(data.schedule?.days !== undefined ? { days: data.schedule.days } : {}),
@@ -335,7 +528,10 @@ export const ownerService = {
     }
     const updated = await prisma.promotion.update({
       where: { id: promotionId },
-      data: { isActive: !promo.isActive },
+      data: {
+        isActive: !promo.isActive,
+        activeAt: promo.isActive ? null : new Date(),
+      },
     });
     return toPromotionDto(updated);
   },

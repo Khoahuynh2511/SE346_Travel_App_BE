@@ -112,6 +112,11 @@ describe("Favorites integration", () => {
 
     expect(addResponse.status).toBe(201);
     expect(addResponse.body).toEqual({ ok: true });
+    const savedFavorite = await prisma.favorite.findUniqueOrThrow({
+      where: { userId_placeId: { userId, placeId: firstPlaceId } },
+      select: { saveAt: true },
+    });
+    expect(savedFavorite.saveAt).toBeInstanceOf(Date);
 
     const listResponse = await request(app)
       .get("/api/v1/users/me/favorites")
@@ -147,6 +152,8 @@ describe("Favorites integration", () => {
       image: "https://example.com/place-1-cover.jpg",
       Image: "https://example.com/place-1-cover.jpg",
     });
+    expect(typeof item.saveAt).toBe("string");
+    expect(new Date(item.saveAt).getTime()).not.toBeNaN();
     expect(item.images).toEqual([
       "https://example.com/place-1-cover.jpg",
       "https://example.com/place-1-1.jpg",
