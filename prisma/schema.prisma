@@ -91,10 +91,12 @@ model Place {
   priceLevel     Float?
   latitude       Float?
   longitude      Float?
-  status         PlaceStatus    @default(PENDING)
-  rejectionReason String?
-  reviewedAt     DateTime?
-  reviewedBy     Int?
+  estimatedVisitDuration Int?            // minutes, e.g. 120 = 2 hours
+  recommendedTimeOfDay   String?         // "MORNING", "AFTERNOON", "EVENING", or null = ANY
+  status                 PlaceStatus    @default(PENDING)
+  rejectionReason        String?
+  reviewedAt             DateTime?
+  reviewedBy             Int?
   owner          User?          @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   reviewedByUser User?          @relation("PlaceReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
   reviews        Review[]
