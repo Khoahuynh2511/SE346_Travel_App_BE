@@ -172,6 +172,8 @@ const PLACES_DATA = [
       { userIdx: 3, rating: 4, content: "Kiến trúc độc đáo, không khí yên bình. Nhớ mặc áo dài chụp ảnh ở chùa Cầu nhé!" },
       { userIdx: 5, rating: 5, content: "Phố cổ Hội An đẹp nhất vào buổi sáng sớm khi chưa có nhiều khách. Đường phố sạch sẽ, người dân thân thiện." },
       { userIdx: 6, rating: 4, content: "May mắn được trải nghiệm lớp học nấu ăn Hội An truyền thống. Rất vui và bổ ích!" },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -197,6 +199,8 @@ const PLACES_DATA = [
       { userIdx: 7, rating: 5, content: "Ẩm thực cung đình Huế là trải nghiệm khó quên. Bún bò Huế ở đây ngon hơn bất kỳ nơi nào khác." },
       { userIdx: 8, rating: 4, content: "Sông Hương thơ mộng, nghe ca Huế trên thuyền dưới ánh trăng rất tuyệt vời." },
       { userIdx: 4, rating: 5, content: "Cầu Trường Tiền ban đêm lên đèn lung linh. Người dân Huế rất hiếu khách và thân thiện." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -297,6 +301,8 @@ const PLACES_DATA = [
       { userIdx: 2, rating: 5, content: "Sapa về mùa đông phủ sương mù và rất lạnh nhưng cảnh đẹp như cổ tích. Đặc biệt thích cà phê trứng bên lò sưởi." },
       { userIdx: 7, rating: 4, content: "Trekking qua các bản làng của người H'Mông và Dao Đỏ là trải nghiệm văn hóa tuyệt vời." },
       { userIdx: 0, rating: 5, content: "Ruộng bậc thang Sapa vào mùa lúa xanh đẹp không kém Mù Cang Chải. Không khí trong lành, mát mẻ." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -322,6 +328,8 @@ const PLACES_DATA = [
       { userIdx: 1, rating: 4, content: "Chợ đêm Phú Quốc đa dạng hải sản tươi sống. Nhớ thử nước mắm Phú Quốc chính gốc về làm quà." },
       { userIdx: 3, rating: 5, content: "Cáp treo Hòn Thơm dài nhất thế giới, nhìn xuống đảo và biển xanh rất ngoạn mục." },
       { userIdx: 8, rating: 5, content: "Resort ở đây chất lượng nhưng giá cũng cao. Nên đặt phòng trước ít nhất 1 tháng vào mùa cao điểm." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -397,6 +405,8 @@ const PLACES_DATA = [
       { userIdx: 1, rating: 5, content: "Xếp hàng từ 5h30 sáng mà 6h đã ngồi ăn. Tô phở nóng hổi, thịt tươi - xứng đáng danh tiếng 60 năm." },
       { userIdx: 4, rating: 4, content: "Phở bò tái lăn xào hành phi - cách chế biến độc đáo không nơi nào có. Hành phi thơm cực kỳ." },
       { userIdx: 7, rating: 5, content: "Quán nhỏ, bàn ghế đơn giản nhưng vị phở thì siêu đỉnh. Đây mới là phở Hà Nội chính gốc." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -519,6 +529,8 @@ const PLACES_DATA = [
       { userIdx: 1, rating: 4, content: "Cua biển hấp gừng to và đầy gạch. Giá hợp lý so với chất lượng. Nên đến chợ đêm để chọn hải sản tươi." },
       { userIdx: 7, rating: 5, content: "Ốc hương xào bơ, nghêu hấp sả - toàn những món đơn giản nhưng ngon vì nguyên liệu cực tươi." },
       { userIdx: 4, rating: 4, content: "Mực một nắng chiên giòn ăn kèm tương ớt xanh - đặc sản Nha Trang mang về làm quà rất ý nghĩa." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -643,6 +655,8 @@ const PLACES_DATA = [
       { userIdx: 0, rating: 4, content: "Thời tiết Đà Lạt tháng 12 se lạnh rất thích hợp để đi dạo trong vườn hoa. Mang áo khoác nhé!" },
       { userIdx: 5, rating: 5, content: "Không chỉ hoa, lễ hội còn có nhiều hoạt động văn hóa, ẩm thực và âm nhạc rất sôi động." },
       { userIdx: 3, rating: 4, content: "Khu vực trưng bày tại quảng trường Lâm Viên rất rộng và đẹp. Buổi tối có show ánh sáng rực rỡ." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -668,6 +682,8 @@ const PLACES_DATA = [
       { userIdx: 4, rating: 4, content: "Tết Hà Nội rất đặc biệt với không khí yên tĩnh đặc trưng ngày mùng 1. Mọi người đi lễ chùa cầu bình an." },
       { userIdx: 2, rating: 5, content: "Chợ hoa Nguyễn Huệ đêm 29-30 Tết đông đúc sôi động. Hoa tươi đẹp và giá cuối phiên rất hời." },
       { userIdx: 7, rating: 5, content: "Múa lân và trống hội rộn ràng trên phố đi bộ Hồ Gươm. Văn hóa Tết Hà Nội truyền thống và đặc sắc." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
 
@@ -868,6 +884,8 @@ const ADDED_PLACES_DATA = [
       { userIdx: 0, rating: 5, content: "Phòng sạch, nhân viên hỗ trợ nhanh và đi bộ ra phố cổ rất tiện. Buổi sáng nhìn ra sông khá thư giãn." },
       { userIdx: 2, rating: 4, content: "Bữa sáng ổn, vị trí đẹp. Nên đặt phòng hướng sông nếu đi cùng gia đình." },
       { userIdx: 5, rating: 5, content: "Không gian yên tĩnh, phù hợp nghỉ lại sau một ngày dạo phố Hội An." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
   {
@@ -925,6 +943,8 @@ const ADDED_PLACES_DATA = [
       { userIdx: 0, rating: 5, content: "Rất nhiều món quà nhỏ dễ mua, nên hỏi giá trước và đi buổi chiều cho đỡ đông." },
       { userIdx: 3, rating: 4, content: "Không khí chợ nhộn nhịp, đồ ăn nhanh và đặc sản khá đa dạng." },
       { userIdx: 6, rating: 4, content: "Một điểm nên ghé nếu muốn mua quà Sài Gòn trong thời gian ngắn." },
+      { userIdx: 6, rating: 2, content: "Trải nghiệm không như mong đợi, dịch vụ hơi chậm và thông tin tại chỗ chưa rõ ràng." },
+      { userIdx: 7, rating: 1, content: "Không hài lòng với chuyến tham quan này, khu vực đông đúc và chất lượng chưa xứng với giá." },
     ],
   },
   {

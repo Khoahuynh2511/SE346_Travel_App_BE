@@ -58,6 +58,35 @@ type OwnerDashboardPlace = {
   }[];
 };
 
+function toOwnerDashboardReviewDto(r: {
+  id: string;
+  userId: number;
+  rating: number;
+  content: string;
+  createdAt: Date;
+  user: { fullName: string | null; username: string | null; avatarUrl: string | null };
+  images: { url: string }[];
+  _count: { likes: number };
+}) {
+  return {
+    id: r.id,
+    userId: r.userId,
+    username: r.user.fullName || r.user.username || "Traveler",
+    Rate: r.rating,
+    date: r.createdAt.toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+      year: "numeric",
+    }),
+    content: r.content,
+    avatar:
+      r.user.avatarUrl ??
+      `https://i.pravatar.cc/150?u=${encodeURIComponent(String(r.userId))}`,
+    images: r.images.map((image) => image.url),
+    likes: r._count.likes,
+  };
+}
+
 function toOwnerPlaceDto(p: {
   id: string;
   name: string;
@@ -222,6 +251,19 @@ export const ownerService = {
             createdAt: true,
           },
         },
+        reviews: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            userId: true,
+            rating: true,
+            content: true,
+            createdAt: true,
+            user: { select: { fullName: true, username: true, avatarUrl: true } },
+            images: { select: { url: true } },
+            _count: { select: { likes: true } },
+          },
+        },
       },
     });
 
@@ -335,6 +377,7 @@ export const ownerService = {
         ratingCount: place.ratingCount,
         comments: commentsByPlaceId.get(place.id) ?? 0,
         saves: savesByPlaceId.get(place.id) ?? 0,
+        reviews: place.reviews.map(toOwnerDashboardReviewDto),
       })),
     };
   },
