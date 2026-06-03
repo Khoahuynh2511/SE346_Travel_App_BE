@@ -103,6 +103,57 @@ describe("Trips integration", () => {
     }
   });
 
+  it("should create trip days from inclusive date range when itinerary data is omitted", async () => {
+    let generatedTripId = "";
+
+    try {
+      const createResponse = await request(app)
+        .post("/api/v1/trips")
+        .set(authHeader(token))
+        .send({
+          title: "Inclusive Range Trip",
+          destination: "Da Nang",
+          startDate: "2026-06-30T17:00:00.000Z",
+          endDate: "2026-07-02T17:00:00.000Z",
+          budget: 3000000,
+          currency: "VND",
+        });
+
+      expect(createResponse.status).toBe(201);
+      expect(createResponse.body.data).toMatchObject({
+        title: "Inclusive Range Trip",
+        duration: 3,
+      });
+      expect(createResponse.body.data.startDate.slice(0, 10)).toBe("2026-07-01");
+      expect(createResponse.body.data.endDate.slice(0, 10)).toBe("2026-07-03");
+      expect(createResponse.body.data.itineraryData).toHaveLength(3);
+      expect(createResponse.body.data.itineraryData.map((day: { dayNumber: number; date: string }) => ({
+        dayNumber: day.dayNumber,
+        date: day.date.slice(0, 10),
+      }))).toEqual([
+        { dayNumber: 1, date: "2026-07-01" },
+        { dayNumber: 2, date: "2026-07-02" },
+        { dayNumber: 3, date: "2026-07-03" },
+      ]);
+
+      generatedTripId = createResponse.body.data.id;
+      const dbDays = await prisma.tripDay.findMany({
+        where: { tripId: generatedTripId },
+        orderBy: { dayNumber: "asc" },
+      });
+      expect(dbDays).toHaveLength(3);
+      expect(dbDays.map((day) => day.date.toISOString().slice(0, 10))).toEqual([
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+      ]);
+    } finally {
+      if (generatedTripId) {
+        await prisma.trip.deleteMany({ where: { id: generatedTripId } });
+      }
+    }
+  });
+
   it("should create, update, and list a trip", async () => {
     const createPayload = {
       title: "Da Lat Summer Trip",
@@ -284,6 +335,7 @@ describe("Trips integration", () => {
     expect(listedTrip).toBeTruthy();
     expect(listedTrip).toMatchObject({
       id: tripId,
+      ownerId: userId,
       title: "Da Lat Autumn Trip",
       budget: 6200000,
       duration: 4,
@@ -308,6 +360,24 @@ describe("Trips integration", () => {
 
     expect(activeMemberUpdateResponse.status).toBe(200);
     expect(activeMemberUpdateResponse.body.data.title).toBe("Da Lat Active Member Edit");
+
+    const ownerLeaveMemberResponse = await request(app)
+      .patch(`/api/v1/trips/${tripId}/members/${collaboratorId}/leave`)
+      .set(authHeader(token));
+
+    expect(ownerLeaveMemberResponse.status).toBe(403);
+
+    const memberLeaveResponse = await request(app)
+      .patch(`/api/v1/trips/${tripId}/members/${collaboratorId}/leave`)
+      .set(authHeader(collaboratorToken));
+
+    expect(memberLeaveResponse.status).toBe(200);
+    expect(memberLeaveResponse.body.data).toMatchObject({
+      tripId,
+      userId: collaboratorId,
+      status: "LEFT",
+    });
+    expect(memberLeaveResponse.body.data.leftAt).toBeTruthy();
 
     const activeMemberDeleteResponse = await request(app)
       .delete(`/api/v1/trips/${tripId}`)

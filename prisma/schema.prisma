@@ -110,6 +110,7 @@ model Promotion {
   startTime    String   @default("")
   endTime      String   @default("")
   specificTime Boolean  @default(false)
+  activeAt     DateTime?
   createdAt    DateTime @default(now())
   place        Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 }
@@ -147,10 +148,12 @@ model ReviewLike {
 model Favorite {
   userId  Int
   placeId String
+  saveAt  DateTime @default(now())
   user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   place   Place  @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@id([userId, placeId])
+  @@index([saveAt])
 }
 
 model Trip {

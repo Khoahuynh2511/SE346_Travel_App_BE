@@ -6,6 +6,8 @@ import { tripDiaryService } from "./tripDiary.service.js";
 const tripActivityPeriods = ["MORNING", "AFTERNOON", "EVENING", "NIGHT"] as const;
 const activeMemberStatus = "ACTIVE" as const;
 const viewableMemberStatuses: TripMemberStatus[] = ["ACTIVE", "PENDING"];
+const vietnamTimezoneOffsetMs = 7 * 60 * 60 * 1000;
+const calendarDateSchema = z.coerce.date().transform(toVietnamCalendarDate);
 
 const tripMemberSchema = z
   .object({
@@ -51,7 +53,7 @@ const tripDaySchema = z
   .object({
     dayId: z.string().optional().nullable(),
     title: z.string().trim().optional(),
-    date: z.coerce.date(),
+    date: calendarDateSchema.optional(),
     locations: z.array(tripLocationSchema).default([]),
   })
   .strict();
@@ -62,8 +64,8 @@ const tripWriteSchema = z
     destination: z.string().trim().optional().nullable(),
     hotel: z.string().trim().optional().nullable(),
     hotelPlaceId: z.string().trim().optional().nullable(),
-    startDate: z.coerce.date(),
-    endDate: z.coerce.date(),
+    startDate: calendarDateSchema,
+    endDate: calendarDateSchema,
     image: z.string().url().optional().nullable(),
     budget: z.coerce.number().nonnegative().optional(),
     currency: z.string().trim().min(1).default("VND"),
@@ -517,8 +519,11 @@ type TripLocationInput = {
 type TripDayInput = {
   dayId?: string | null;
   title?: string;
-  date: Date;
+  date?: Date;
   locations: TripLocationInput[];
+};
+type BuiltTripDayInput = Omit<TripDayInput, "date"> & {
+  date: Date;
 };
 
 type TripWriteBody = {
@@ -609,16 +614,16 @@ function normalizeLocationInput(value: unknown): TripLocationInput {
   };
 }
 
-function buildDayInputs(input: TripInput, existingTrip: TripWithDetails | null) {
+function buildDayInputs(input: TripInput, existingTrip: TripWithDetails | null): BuiltTripDayInput[] {
   const dayCount = daysBetweenInclusive(input.startDate, input.endDate);
   const existingDays = existingTrip?.days ?? [];
-  const result: TripDayInput[] = [];
+  const result: BuiltTripDayInput[] = [];
 
   for (let index = 0; index < dayCount; index += 1) {
     const provided = input.itineraryData[index];
     const existing = existingDays[index];
     const dayId = provided?.dayId ?? existing?.id ?? undefined;
-    const date = provided?.date ?? addDays(input.startDate, index);
+    const date = addDays(input.startDate, index);
     const title = provided?.title ?? existing?.title ?? `Day ${index + 1}`;
     const locations = provided?.locations.length
       ? provided.locations
@@ -636,7 +641,7 @@ function buildDayInputs(input: TripInput, existingTrip: TripWithDetails | null) 
 }
 
 function findReusableTripDay(
-  dayInput: TripDayInput,
+  dayInput: BuiltTripDayInput,
   index: number,
   existingDays: TripDayWithActivities[],
   existingDaysById: Map<string, TripDayWithActivities>,
@@ -843,6 +848,7 @@ export function mapTrip(trip: TripWithDetails) {
 
   return {
     id: trip.id,
+    ownerId: trip.userId,
     title: trip.title,
     date: formatTripDateRange(trip.startDate, trip.endDate),
     startDate: trip.startDate,
@@ -995,6 +1001,15 @@ function addDays(date: Date, daysToAdd: number) {
 
 function dateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function toVietnamCalendarDate(date: Date) {
+  const vietnamDate = new Date(date.getTime() + vietnamTimezoneOffsetMs);
+  return new Date(Date.UTC(
+    vietnamDate.getUTCFullYear(),
+    vietnamDate.getUTCMonth(),
+    vietnamDate.getUTCDate()
+  ));
 }
 
 function sum(values: number[]) {

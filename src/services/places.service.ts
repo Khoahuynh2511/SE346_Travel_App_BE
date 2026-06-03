@@ -42,6 +42,7 @@ function toPromotionDto(p: {
   id: string;
   title: string;
   isActive: boolean;
+  activeAt: Date | null;
   startDate: string;
   endDate: string;
   days: string[];
@@ -53,6 +54,7 @@ function toPromotionDto(p: {
     id: p.id,
     title: p.title,
     isActive: p.isActive,
+    activeAt: p.activeAt?.toISOString() ?? null,
     schedule: {
       startDate: p.startDate,
       endDate: p.endDate,
