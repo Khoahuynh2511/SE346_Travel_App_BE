@@ -1,0 +1,24 @@
+# Task Management
+
+- [x] Research and Planning
+    - [x] Explore project structure
+    - [x] Analyze database models for Trips and Budget
+    - [x] Analyze existing AI mock implementation
+    - [x] Create implementation plan
+- [x] Implementation Phase 1: Setup
+    - [x] Update `.env` with Groq API Key
+    - [x] Install `groq-sdk`
+- [x] Implementation Phase 2: Groq Integration
+    - [x] Create `groq.service.ts`
+    - [x] Define System Prompt and Roles
+- [x] Implementation Phase 3: Function Calling (RAG)
+    - [x] Implement data retrieval tools for AI
+    - [x] Integrate tools into Groq service
+- [x] Implementation Phase 4: API Routes
+    - [x] Update `ai.routes.ts` with `/chat` endpoint
+    - [x] Update Swagger/OpenAPI documentation (if necessary)
+- [x] Verification
+    - [x] Run test scripts
+    - [x] Verify functionality via API calls
+- [x] Documentation
+    - [x] Create walkthrough.artifact.md

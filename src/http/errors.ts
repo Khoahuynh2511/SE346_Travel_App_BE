@@ -33,6 +33,11 @@ export function httpErrorMiddleware(
       : 500;
   const message =
     err instanceof Error ? err.message : typeof err === "string" ? err : "INTERNAL";
+
+  if (status === 500) {
+    console.error("[Fatal Error]", err);
+  }
+
   if (!res.headersSent) {
     res.status(status >= 400 && status < 600 ? status : 500).json(jsonError(status, message));
   }
