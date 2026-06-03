@@ -1,8 +1,16 @@
 import { z } from "zod";
+import { groqService } from "./groq.service.js";
 
 const tripPlanSchema = z.object({
   query: z.string().min(1).max(500),
   location: z.string().optional(),
+});
+
+const chatSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+  })),
 });
 
 export const aiService = {
@@ -31,5 +39,10 @@ export const aiService = {
       ],
       note: "AI planner is in preview. Connect a real LLM provider for personalized results.",
     };
+  },
+
+  async chat(userId: number, body: unknown) {
+    const data = chatSchema.parse(body);
+    return await groqService.chat(userId, data.messages);
   },
 };

@@ -13,3 +13,13 @@ aiRouter.post(
     res.json({ ok: true, data });
   })
 );
+
+aiRouter.post(
+  "/chat",
+  requireAuth,
+  wrapAsync(async (req, res) => {
+    const userId = req.user!.sub;
+    const response = await aiService.chat(userId, req.body);
+    res.json({ ok: true, data: response });
+  })
+);
