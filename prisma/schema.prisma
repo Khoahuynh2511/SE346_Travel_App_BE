@@ -16,6 +16,12 @@ enum PlaceCategory {
   SHOPPING
 }
 
+enum PlaceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum UserRole {
   TRAVELER
   OWNER
@@ -42,6 +48,8 @@ enum NotificationType {
   upcoming
   promotion
   like_comment
+  place_approved
+  place_rejected
 }
 
 model User {
@@ -57,12 +65,13 @@ model User {
   reviews      Review[]
   reviewLikes  ReviewLike[]
   favorites    Favorite[]
-  ownedPlaces  Place[]
+  ownedPlaces  Place[]          @relation("PlaceOwner")
   trips        Trip[]
   tripMembers  TripMember[]
   tripInvites  TripMember[]    @relation("TripMemberInviter")
   diaryEntries TripDiaryEntry[]
- 
+
+  reviewedPlaces    Place[]          @relation("PlaceReviewer")
   actedNotifications Notification[] @relation("NotificationActor")
   notificationRecipients NotificationRecipient[]
   chatMessages ChatMessage[]
@@ -82,7 +91,12 @@ model Place {
   priceLevel     Float?
   latitude       Float?
   longitude      Float?
-  owner          User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  status         PlaceStatus    @default(PENDING)
+  rejectionReason String?
+  reviewedAt     DateTime?
+  reviewedBy     Int?
+  owner          User?          @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reviewedByUser User?          @relation("PlaceReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
   reviews        Review[]
   favorites      Favorite[]
   promotions     Promotion[]

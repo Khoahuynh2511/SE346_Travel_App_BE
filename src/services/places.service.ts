@@ -79,7 +79,8 @@ export const placesService = {
     const category = query.category
       ? (placeCategorySchema.parse(query.category) as PlaceCategory)
       : undefined;
-    const where = category ? { category } : {};
+    const where: Record<string, unknown> = { status: "APPROVED" };
+    if (category) where.category = category;
     const [total, list] = await Promise.all([
       prisma.place.count({ where }),
       prisma.place.findMany({
@@ -117,6 +118,9 @@ export const placesService = {
       },
     });
     if (!place) return null;
+
+    // Only show APPROVED places to the public
+    if ((place as any).status !== "APPROVED") return null;
 
     const reviews = place.reviews.map((r) => {
       const displayName = r.user.fullName || r.user.username || "Traveler";
