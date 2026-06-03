@@ -72,6 +72,17 @@ tripMemberRouter.patch(
   })
 );
 
+tripMemberRouter.patch(
+  "/:tripId/members/:userId/leave",
+  requireAuth,
+  wrapAsync(async (req, res) => {
+    const tripId = Array.isArray(req.params.tripId) ? req.params.tripId[0] : req.params.tripId;
+    const rawUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+    const data = await tripMembersService.leaveTripByUserId(req.user!.sub, tripId, Number(rawUserId));
+    res.json({ ok: true, data });
+  })
+);
+
 tripMemberRouter.delete(
   "/:tripId/members/:userId",
   requireAuth,

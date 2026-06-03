@@ -16,7 +16,7 @@ function toFavoriteListDto(p: {
   latitude: number | null;
   longitude: number | null;
   images: { url: string }[];
-}) {
+}, saveAt: Date) {
   const images = [p.coverImageUrl, ...p.images.map((img) => img.url)];
   return {
     id: p.id,
@@ -31,6 +31,7 @@ function toFavoriteListDto(p: {
     priceLevel: p.priceLevel,
     latitude: p.latitude,
     longitude: p.longitude,
+    saveAt,
     images,
     Id: p.id,
     Name: p.name,
@@ -59,13 +60,13 @@ export const favoritesService = {
             include: { images: { orderBy: { createdAt: "asc" } } },
           },
         },
-        orderBy: { placeId: "asc" },
+        orderBy: [{ saveAt: "desc" }, { placeId: "asc" }],
         skip: offset,
         take: limit,
       }),
     ]);
 
-    const items = rows.map(({ place }) => toFavoriteListDto(place));
+    const items = rows.map(({ place, saveAt }) => toFavoriteListDto(place, saveAt));
 
     return { items, total, limit, offset };
   },
@@ -76,7 +77,7 @@ export const favoritesService = {
     await prisma.favorite.upsert({
       where: { userId_placeId: { userId, placeId } },
       update: {},
-      create: { userId, placeId },
+      create: { userId, placeId, saveAt: new Date() },
     });
     return { ok: true };
   },

@@ -371,6 +371,21 @@ export const tripMembersService = {
   },
 
   async leaveTrip(userId: number, tripId: string) {
+    return leaveTripForUser(tripId, userId);
+  },
+
+  async leaveTripByUserId(actorUserId: number, tripId: string, memberUserId: number) {
+    if (actorUserId !== memberUserId) {
+      throw Object.assign(new Error("FORBIDDEN"), { statusCode: 403 });
+    }
+
+    return leaveTripForUser(tripId, memberUserId);
+  },
+};
+
+type TripInvitationWithDetails = Prisma.TripMemberGetPayload<{ include: typeof tripInvitationInclude }>;
+
+async function leaveTripForUser(tripId: string, memberUserId: number) {
     const trip = await prisma.trip.findUnique({
       where: { id: tripId },
       select: { id: true, userId: true },
@@ -378,11 +393,11 @@ export const tripMembersService = {
     if (!trip) {
       throw Object.assign(new Error("TRIP_NOT_FOUND"), { statusCode: 404 });
     }
-    if (trip.userId === userId) {
+    if (trip.userId === memberUserId) {
       throw Object.assign(new Error("OWNER_CANNOT_LEAVE_TRIP"), { statusCode: 400 });
     }
 
-    const member = await getUserTripMember(userId, tripId);
+    const member = await getUserTripMember(memberUserId, tripId);
     if (!member || member.status !== activeMemberStatus) {
       throw Object.assign(new Error("TRIP_MEMBER_NOT_FOUND"), { statusCode: 404 });
     }
@@ -397,10 +412,7 @@ export const tripMembersService = {
     });
 
     return mapTripInvitation(updated);
-  },
-};
-
-type TripInvitationWithDetails = Prisma.TripMemberGetPayload<{ include: typeof tripInvitationInclude }>;
+}
 
 async function assertTripOwner(userId: number, tripId: string) {
   const trip = await prisma.trip.findUnique({
