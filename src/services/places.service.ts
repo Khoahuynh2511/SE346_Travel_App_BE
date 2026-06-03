@@ -1,12 +1,15 @@
 import { PlaceCategory } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
 
-const categoryMap: Record<string, PlaceCategory | undefined> = {
-  attractions: PlaceCategory.ATTRACTIONS,
-  dining: PlaceCategory.DINING,
-  festivals: PlaceCategory.FESTIVALS,
-};
+const placeCategorySchema = z.enum([
+  "ATTRACTIONS",
+  "DINING",
+  "FESTIVALS",
+  "STAYS",
+  "SHOPPING",
+]);
 
 function toListDto(p: {
   id: string;
@@ -16,6 +19,9 @@ function toListDto(p: {
   ratingCount: number;
   featureLabel: string;
   coverImageUrl: string;
+  category: PlaceCategory;
+  priceLevel: number | null;
+  images: { url: string }[];
 }) {
   return {
     Id: p.id,
@@ -24,7 +30,39 @@ function toListDto(p: {
     Rate: p.averageRating,
     NumberOfRate: p.ratingCount,
     Features: p.featureLabel,
+    category: p.category,
+    Category: p.category,
+    priceLevel: p.priceLevel,
     image: p.coverImageUrl,
+    images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
+  };
+}
+
+function toPromotionDto(p: {
+  id: string;
+  title: string;
+  isActive: boolean;
+  activeAt: Date | null;
+  startDate: string;
+  endDate: string;
+  days: string[];
+  startTime: string;
+  endTime: string;
+  specificTime: boolean;
+}) {
+  return {
+    id: p.id,
+    title: p.title,
+    isActive: p.isActive,
+    activeAt: p.activeAt?.toISOString() ?? null,
+    schedule: {
+      startDate: p.startDate,
+      endDate: p.endDate,
+      days: p.days,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      specificTime: p.specificTime,
+    },
   };
 }
 
@@ -38,14 +76,16 @@ function formatReviewDate(d: Date) {
 
 export const placesService = {
   async list(query: Record<string, string | undefined>, paging: Pagination) {
-    const catKey = query.category?.toLowerCase();
-    const category = catKey ? categoryMap[catKey] : undefined;
+    const category = query.category
+      ? (placeCategorySchema.parse(query.category) as PlaceCategory)
+      : undefined;
     const where = category ? { category } : {};
     const [total, list] = await Promise.all([
       prisma.place.count({ where }),
       prisma.place.findMany({
         where,
         orderBy: { ratingCount: "desc" },
+        include: { images: { orderBy: { createdAt: "asc" } } },
         skip: paging.offset,
         take: paging.limit,
       }),
@@ -62,6 +102,11 @@ export const placesService = {
     const place = await prisma.place.findUnique({
       where: { id: placeId },
       include: {
+        images: { orderBy: { createdAt: "asc" } },
+        promotions: {
+          where: { isActive: true },
+          orderBy: { createdAt: "desc" },
+        },
         reviews: {
           include: {
             user: { select: { fullName: true, username: true, avatarUrl: true } },
@@ -76,6 +121,7 @@ export const placesService = {
     const reviews = place.reviews.map((r) => {
       const displayName = r.user.fullName || r.user.username || "Traveler";
       return {
+        userId: r.userId,
         ava:
           r.user.avatarUrl ??
           `https://i.pravatar.cc/150?u=${encodeURIComponent(displayName)}`,
@@ -94,10 +140,30 @@ export const placesService = {
       Rate: place.averageRating,
       NumberOfRate: place.ratingCount,
       Image: place.coverImageUrl,
+      Images: [place.coverImageUrl, ...place.images.map((img) => img.url)],
       Features: place.featureLabel,
+      category: place.category,
+      Category: place.category,
       about: place.about,
       priceLevel: place.priceLevel,
+      promotions: place.promotions.map(toPromotionDto),
+      Promotions: place.promotions.map(toPromotionDto),
       Reviews: reviews,
     };
+  },
+
+  async listPromotions(placeId: string) {
+    const place = await prisma.place.findUnique({
+      where: { id: placeId },
+      select: { id: true },
+    });
+    if (!place) return null;
+
+    const promotions = await prisma.promotion.findMany({
+      where: { placeId, isActive: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return promotions.map(toPromotionDto);
   },
 };

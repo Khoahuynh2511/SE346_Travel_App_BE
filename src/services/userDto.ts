@@ -1,7 +1,7 @@
 import type { UserRole } from "@prisma/client";
 
 export function toFeRole(role: UserRole): string {
-  return role === "OWNER" ? "admin" : "user";
+  return role;
 }
 
 export function toAuthUserDto(u: {

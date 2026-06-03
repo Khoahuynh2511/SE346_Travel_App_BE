@@ -4,7 +4,7 @@
 -- bcryptjs cost 10, password: demo1234
 --
 -- Deletes existing demo rows keyed by IDs below, then re-inserts minimal data
--- matching the Expo home tabs: ATTRACTIONS, DINING, FESTIVALS.
+-- matching the backend PlaceCategory enum values.
 -- =============================================================================
 
 DELETE FROM "ReviewImage" WHERE "id" LIKE 'fe_rimg_%';

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
+import { notificationService } from "./notification.service.js";
 import { realtimeService } from "./realtime.service.js";
 
 async function recalcPlaceStats(placeId: string) {
@@ -49,6 +50,7 @@ function mapReviewListItem(r: {
 }) {
   return {
     id: r.id,
+    userId: r.userId,
     username: r.user.fullName || r.user.username || "Traveler",
     Rate: r.rating,
     date: r.createdAt.toLocaleDateString("en-US", {
@@ -105,7 +107,7 @@ export const reviewsService = {
         where,
         include: {
           place: {
-            select: { id: true, name: true, coverImageUrl: true, region: true },
+            include: { images: { orderBy: { createdAt: "asc" } } },
           },
           images: true,
           _count: { select: { likes: true } },
@@ -122,6 +124,7 @@ export const reviewsService = {
         placeId: r.placeId,
         placeName: r.place.name,
         placeCoverUrl: r.place.coverImageUrl,
+        placeImages: [r.place.coverImageUrl, ...r.place.images.map((img) => img.url)],
         placeRegion: r.place.region,
         Rate: r.rating,
         date: r.createdAt.toLocaleDateString("en-US", {
@@ -176,6 +179,12 @@ export const reviewsService = {
       return { liked: false, likes: count };
     }
     await prisma.reviewLike.create({ data: { reviewId, userId } });
+    await createNotificationSideEffect(() =>
+      notificationService.createReviewLikeNotification({
+        actorId: userId,
+        reviewId,
+      })
+    );
     const count = await prisma.reviewLike.count({ where: { reviewId } });
     return { liked: true, likes: count };
   },
@@ -220,3 +229,11 @@ export const reviewsService = {
     await recalcPlaceStats(placeId);
   },
 };
+
+async function createNotificationSideEffect<T>(factory: () => Promise<T>) {
+  try {
+    return await factory();
+  } catch {
+    return null;
+  }
+}

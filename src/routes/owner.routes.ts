@@ -9,6 +9,30 @@ export const ownerRouter = Router();
 ownerRouter.use(requireAuth, requireOwner);
 
 ownerRouter.get(
+  "/dashboard",
+  wrapAsync(async (req, res) => {
+    const ownerIdParam = req.query.ownerId;
+    const requestedOwnerId =
+      typeof ownerIdParam === "string" && ownerIdParam.trim() !== ""
+        ? Number(ownerIdParam)
+        : req.user!.sub;
+
+    if (!Number.isInteger(requestedOwnerId) || requestedOwnerId <= 0) {
+      res.status(400).json({ ok: false, error: "VALIDATION" });
+      return;
+    }
+
+    if (requestedOwnerId !== req.user!.sub) {
+      res.status(403).json({ ok: false, error: "FORBIDDEN" });
+      return;
+    }
+
+    const data = await ownerService.getDashboard(requestedOwnerId);
+    res.json({ ok: true, data });
+  })
+);
+
+ownerRouter.get(
   "/places",
   wrapAsync(async (req, res) => {
     const data = await ownerService.listPlaces(req.user!.sub);

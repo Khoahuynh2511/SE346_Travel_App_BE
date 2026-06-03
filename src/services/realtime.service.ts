@@ -5,11 +5,12 @@ const SUBSCRIBE_TIMEOUT_MS = 10_000;
 
 export const realtimeService = {
   async publishReviewCreated(payload: { placeId: string; reviewId: string }) {
+    if (process.env.NODE_ENV === "test") return;
     const client = getSupabaseAdmin();
     if (!client) return;
 
     const channel = client.channel(env.supabaseBroadcastChannel, {
-      config: { broadcast: { self: false } },
+      config: { broadcast: { self: false } }, //nghĩa là người gửi không tự nhận lại message của chính mình.
     });
 
     try {
@@ -18,7 +19,7 @@ export const realtimeService = {
         const done = (fn: () => void) => {
           if (finished) return;
           finished = true;
-          fn();
+          setImmediate(fn);
         };
 
         const timer = setTimeout(() => {

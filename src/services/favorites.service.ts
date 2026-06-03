@@ -1,22 +1,74 @@
+import { PlaceCategory } from "@prisma/client";
 import { prisma } from "../database/client.js";
+import type { Pagination } from "../http/pagination.js";
+
+function toFavoriteListDto(p: {
+  id: string;
+  name: string;
+  region: string;
+  averageRating: number;
+  ratingCount: number;
+  featureLabel: string;
+  coverImageUrl: string;
+  category: PlaceCategory;
+  about: string;
+  priceLevel: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  images: { url: string }[];
+}, saveAt: Date) {
+  const images = [p.coverImageUrl, ...p.images.map((img) => img.url)];
+  return {
+    id: p.id,
+    name: p.name,
+    region: p.region,
+    averageRating: p.averageRating,
+    ratingCount: p.ratingCount,
+    featureLabel: p.featureLabel,
+    coverImageUrl: p.coverImageUrl,
+    category: p.category,
+    about: p.about,
+    priceLevel: p.priceLevel,
+    latitude: p.latitude,
+    longitude: p.longitude,
+    saveAt,
+    images,
+    Id: p.id,
+    Name: p.name,
+    Located: p.region,
+    Location: p.region,
+    Rate: p.averageRating,
+    NumberOfRate: p.ratingCount,
+    Features: p.featureLabel,
+    Category: p.category,
+    image: p.coverImageUrl,
+    Image: p.coverImageUrl,
+    Images: images,
+  };
+}
 
 export const favoritesService = {
-  async list(userId: number) {
-    const rows = await prisma.favorite.findMany({
-      where: { userId },
-      include: {
-        place: true,
-      },
-    });
-    return rows.map(({ place: p }) => ({
-      Id: p.id,
-      Name: p.name,
-      Located: p.region,
-      Rate: p.averageRating,
-      NumberOfRate: p.ratingCount,
-      Features: p.featureLabel,
-      image: p.coverImageUrl,
-    }));
+  async list(userId: number, paging?: Pagination) {
+    const limit = paging?.limit ?? 50;
+    const offset = paging?.offset ?? 0;
+    const [total, rows] = await Promise.all([
+      prisma.favorite.count({ where: { userId } }),
+      prisma.favorite.findMany({
+        where: { userId },
+        include: {
+          place: {
+            include: { images: { orderBy: { createdAt: "asc" } } },
+          },
+        },
+        orderBy: [{ saveAt: "desc" }, { placeId: "asc" }],
+        skip: offset,
+        take: limit,
+      }),
+    ]);
+
+    const items = rows.map(({ place, saveAt }) => toFavoriteListDto(place, saveAt));
+
+    return { items, total, limit, offset };
   },
 
   async add(userId: number, placeId: string) {
@@ -25,7 +77,7 @@ export const favoritesService = {
     await prisma.favorite.upsert({
       where: { userId_placeId: { userId, placeId } },
       update: {},
-      create: { userId, placeId },
+      create: { userId, placeId, saveAt: new Date() },
     });
     return { ok: true };
   },

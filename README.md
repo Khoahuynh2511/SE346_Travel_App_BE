@@ -91,6 +91,7 @@ Tiền tố: `/api/v1`
 | POST | `/auth/register` | — |
 | POST | `/auth/login` | — |
 | POST | `/auth/forgot-password` | — |
+| POST | `/auth/reset-password` | — |
 | POST | `/auth/oauth/:provider` | — (google/apple: 501 chưa cấu hình) |
 
 ### Users
@@ -103,7 +104,7 @@ Tiền tố: `/api/v1`
 ### Places & Reviews
 | Method | Path | Auth |
 |--------|------|------|
-| GET | `/places?category=attractions\|dining\|festivals` | — |
+| GET | `/places?category=ATTRACTIONS\|DINING\|FESTIVALS\|STAYS\|SHOPPING` | — |
 | GET | `/places/:placeId` | JWT tùy chọn |
 | GET/POST | `/places/:placeId/reviews` | POST cần JWT |
 | PATCH/DELETE | `/reviews/:reviewId` | JWT |

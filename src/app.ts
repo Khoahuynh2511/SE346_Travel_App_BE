@@ -8,7 +8,12 @@ import { placesRouter } from "./routes/places.routes.js";
 import { reviewsRouter } from "./routes/reviews.routes.js";
 import { uploadsRouter } from "./routes/uploads.routes.js";
 import { ownerRouter } from "./routes/owner.routes.js";
+import { adminRouter } from "./routes/admin.routes.js";
 import { aiRouter } from "./routes/ai.routes.js";
+import { tripsRouter } from "./routes/trips.routes.js";
+import { tripDiaryRouter } from "./routes/tripDiary.routes.js";
+import { meRouter } from "./routes/me.routes.js";
+import { notificationRouter } from "./routes/notification.routes.js";
 import { supabaseConfigured } from "./integrations/supabaseAdmin.js";
 import { httpErrorMiddleware } from "./http/errors.js";
 import type { NextFunction, Request, Response } from "express";
@@ -39,7 +44,12 @@ api.use("/places", placesRouter);
 api.use("/reviews", reviewsRouter);
 api.use("/uploads", uploadsRouter);
 api.use("/owner", ownerRouter);
+api.use("/admin", adminRouter);
 api.use("/ai", aiRouter);
+api.use("/trips", tripsRouter);
+api.use("/me", meRouter);
+api.use("/notifications", notificationRouter);
+api.use("/trip-diaries", tripDiaryRouter);
 app.use("/api/v1", api);
 
 app.get("/health", (_req, res) =>
