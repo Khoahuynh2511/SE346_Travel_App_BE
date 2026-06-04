@@ -154,6 +154,153 @@ describe("Trips integration", () => {
     }
   });
 
+  it("should delete invitation notification after accepting from notifications API", async () => {
+    let generatedTripId = "";
+    let recipientId = "";
+    let notificationId = "";
+
+    try {
+      const createResponse = await request(app)
+        .post("/api/v1/trips")
+        .set(authHeader(token))
+        .send({
+          title: "Accept Notification Trip",
+          destination: "Da Nang",
+          startDate: "2026-08-01T00:00:00.000Z",
+          endDate: "2026-08-02T00:00:00.000Z",
+          budget: 1000000,
+          currency: "VND",
+        });
+
+      expect(createResponse.status).toBe(201);
+      generatedTripId = createResponse.body.data.id;
+
+      const inviteResponse = await request(app)
+        .post(`/api/v1/trips/${generatedTripId}/members/invite`)
+        .set(authHeader(token))
+        .send({ userId: inviteeId });
+
+      expect(inviteResponse.status).toBe(201);
+      recipientId = inviteResponse.body.data.notification.id;
+      notificationId = inviteResponse.body.data.notification.notificationId;
+      expect(recipientId).toBeTruthy();
+      expect(notificationId).toBeTruthy();
+
+      const acceptResponse = await request(app)
+        .post(`/api/v1/notifications/${recipientId}/accept`)
+        .set(authHeader(inviteeToken));
+
+      expect(acceptResponse.status).toBe(200);
+      expect(acceptResponse.body.ok).toBe(true);
+      expect(acceptResponse.body.data).toMatchObject({
+        tripId: generatedTripId,
+        userId: inviteeId,
+        status: "ACTIVE",
+      });
+
+      const [deletedRecipient, deletedNotification] = await Promise.all([
+        prisma.notificationRecipient.findUnique({ where: { id: recipientId } }),
+        prisma.notification.findUnique({ where: { id: notificationId } }),
+      ]);
+      expect(deletedRecipient).toBeNull();
+      expect(deletedNotification).toBeNull();
+
+      const notificationsResponse = await request(app)
+        .get("/api/v1/notifications")
+        .set(authHeader(inviteeToken));
+
+      expect(notificationsResponse.status).toBe(200);
+      expect(
+        notificationsResponse.body.data.some((notification: { targetId: string }) => notification.targetId === generatedTripId)
+      ).toBe(false);
+    } finally {
+      if (generatedTripId) {
+        await prisma.trip.deleteMany({ where: { id: generatedTripId } });
+      }
+    }
+  }, 30_000);
+
+  it("should delete invitation notification after declining from notifications API", async () => {
+    let generatedTripId = "";
+    let declinedInviteeId = 0;
+    let declinedInviteeToken = "";
+    let recipientId = "";
+    let notificationId = "";
+
+    try {
+      const declinedInvitee = await prisma.user.create({
+        data: {
+          email: `trip-decline-invitee-${Date.now()}@example.com`,
+          passwordHash: await bcrypt.hash(password, 10),
+          fullName: "Trip Decline Invitee",
+        },
+      });
+      declinedInviteeId = declinedInvitee.id;
+      declinedInviteeToken = authService.signToken(declinedInvitee.id, declinedInvitee.email);
+
+      const createResponse = await request(app)
+        .post("/api/v1/trips")
+        .set(authHeader(token))
+        .send({
+          title: "Decline Notification Trip",
+          destination: "Da Nang",
+          startDate: "2026-08-03T00:00:00.000Z",
+          endDate: "2026-08-04T00:00:00.000Z",
+          budget: 1000000,
+          currency: "VND",
+        });
+
+      expect(createResponse.status).toBe(201);
+      generatedTripId = createResponse.body.data.id;
+
+      const inviteResponse = await request(app)
+        .post(`/api/v1/trips/${generatedTripId}/members/invite`)
+        .set(authHeader(token))
+        .send({ userId: declinedInviteeId });
+
+      expect(inviteResponse.status).toBe(201);
+      recipientId = inviteResponse.body.data.notification.id;
+      notificationId = inviteResponse.body.data.notification.notificationId;
+      expect(recipientId).toBeTruthy();
+      expect(notificationId).toBeTruthy();
+
+      const declineResponse = await request(app)
+        .post(`/api/v1/notifications/${recipientId}/decline`)
+        .set(authHeader(declinedInviteeToken));
+
+      expect(declineResponse.status).toBe(200);
+      expect(declineResponse.body.ok).toBe(true);
+      expect(declineResponse.body.data).toMatchObject({
+        tripId: generatedTripId,
+        userId: declinedInviteeId,
+        status: "REJECTED",
+      });
+
+      const [deletedRecipient, deletedNotification] = await Promise.all([
+        prisma.notificationRecipient.findUnique({ where: { id: recipientId } }),
+        prisma.notification.findUnique({ where: { id: notificationId } }),
+      ]);
+      expect(deletedRecipient).toBeNull();
+      expect(deletedNotification).toBeNull();
+
+      const notificationsResponse = await request(app)
+        .get("/api/v1/notifications")
+        .set(authHeader(declinedInviteeToken));
+
+      expect(notificationsResponse.status).toBe(200);
+      expect(
+        notificationsResponse.body.data.some((notification: { targetId: string }) => notification.targetId === generatedTripId)
+      ).toBe(false);
+    } finally {
+      if (generatedTripId) {
+        await prisma.trip.deleteMany({ where: { id: generatedTripId } });
+      }
+      if (declinedInviteeId > 0) {
+        await prisma.user.deleteMany({ where: { id: declinedInviteeId } });
+      }
+    }
+  }, 30_000);
+
   it("should create, update, and list a trip", async () => {
     const createPayload = {
       title: "Da Lat Summer Trip",
