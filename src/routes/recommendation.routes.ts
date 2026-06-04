@@ -33,7 +33,7 @@ const transformItem = (item: any) => ({
   coverImageUrl: item.place.coverImageUrl,
   featureLabel: item.place.featureLabel,
   averageRating: toNumberOrNull(item.place.averageRating) ?? 0,
-  ratingCount: item.place.ratingCount,
+  ratingCount: toNumberOrNull(item.place.ratingCount) ?? 0,
   priceLevel: toNumberOrNull(item.place.priceLevel),
   score: item.score,
   explanation: item.explanation,
@@ -97,7 +97,8 @@ recommendationRouter.get(
     });
 
     const data = places.map((place) => {
-      const score = Math.log1p(place.ratingCount) / Math.log1p(5000);
+      const ratingCount = toNumberOrNull(place.ratingCount) ?? 0;
+      const score = Math.log1p(ratingCount) / Math.log1p(5000);
       return {
         placeId: place.id,
         name: place.name,
@@ -106,7 +107,7 @@ recommendationRouter.get(
         coverImageUrl: place.coverImageUrl,
         featureLabel: place.featureLabel,
         averageRating: toNumberOrNull(place.averageRating) ?? 0,
-        ratingCount: place.ratingCount,
+        ratingCount,
         priceLevel: toNumberOrNull(place.priceLevel),
         score,
         explanation: "Đang thịnh hành",

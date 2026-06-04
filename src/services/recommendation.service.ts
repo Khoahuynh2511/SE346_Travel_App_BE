@@ -65,8 +65,6 @@ const CATEGORY_LABELS: Record<PlaceCategoryType, string> = {
   SHOPPING: "mua sắm"
 };
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — keep recommendations in sync with DB
-
 function toNumberOrNull(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -85,18 +83,9 @@ function toNumberOrNull(value: unknown): number | null {
   return null;
 }
 
-// ==================== Module-level Cache ====================
-
-let tfidfCache: {
-  matrix: Map<string, Map<string, number>>;
-  createdAt: number;
-  places: PlaceData[];
-} | null = null;
-
-let placeDataCache: {
-  data: PlaceData[];
-  createdAt: number;
-} | null = null;
+function toNumberOrDefault(value: unknown, fallback = 0): number {
+  return toNumberOrNull(value) ?? fallback;
+}
 
 // ==================== Utility Functions ====================
 
@@ -175,18 +164,7 @@ function buildTFIDFMatrix(places: PlaceData[]): Map<string, Map<string, number>>
 }
 
 function getTFIDFMatrix(places: PlaceData[]): Map<string, Map<string, number>> {
-  const now = Date.now();
-  if (tfidfCache && (now - tfidfCache.createdAt) < CACHE_TTL_MS) {
-    return tfidfCache.matrix;
-  }
-
-  const matrix = buildTFIDFMatrix(places);
-  tfidfCache = {
-    matrix,
-    createdAt: now,
-    places
-  };
-  return matrix;
+  return buildTFIDFMatrix(places);
 }
 
 function cosineSimilarity(
@@ -551,8 +529,8 @@ async function getCollaborativeRecommendations(
         category: rawPlace.category as PlaceCategoryType,
         coverImageUrl: rawPlace.coverImageUrl,
         featureLabel: rawPlace.featureLabel,
-        averageRating: toNumberOrNull(rawPlace.averageRating) ?? 0,
-        ratingCount: rawPlace.ratingCount,
+        averageRating: toNumberOrDefault(rawPlace.averageRating),
+        ratingCount: toNumberOrDefault(rawPlace.ratingCount),
         about: rawPlace.about,
         priceLevel: toNumberOrNull(rawPlace.priceLevel),
         latitude: toNumberOrNull(rawPlace.latitude),
@@ -629,11 +607,6 @@ function getTrendingPlaces(allPlaces: PlaceData[], limit: number): ScoredPlace[]
 // ==================== Data Fetching ====================
 
 async function getAllPlaces(): Promise<PlaceData[]> {
-  const now = Date.now();
-  if (placeDataCache && (now - placeDataCache.createdAt) < CACHE_TTL_MS) {
-    return placeDataCache.data;
-  }
-
   const places = await prisma.place.findMany({
     where: {
       status: "APPROVED",
@@ -662,20 +635,15 @@ async function getAllPlaces(): Promise<PlaceData[]> {
     category: p.category as PlaceCategoryType,
     coverImageUrl: p.coverImageUrl,
     featureLabel: p.featureLabel,
-    averageRating: toNumberOrNull(p.averageRating) ?? 0,
-    ratingCount: p.ratingCount,
+    averageRating: toNumberOrDefault(p.averageRating),
+    ratingCount: toNumberOrDefault(p.ratingCount),
     about: p.about,
     priceLevel: toNumberOrNull(p.priceLevel),
     latitude: toNumberOrNull(p.latitude),
     longitude: toNumberOrNull(p.longitude),
   }));
 
-  placeDataCache = {
-    data: normalized,
-    createdAt: now
-  };
-
-  return placeDataCache.data;
+  return normalized;
 }
 
 // ==================== Main Recommendation Function ====================
