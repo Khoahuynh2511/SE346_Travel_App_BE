@@ -1,4 +1,5 @@
 import { prisma } from "../database/client.js";
+import { notDeleted } from "../utils/softDelete.js";
 
 // ==================== Type Definitions ====================
 
@@ -64,7 +65,25 @@ const CATEGORY_LABELS: Record<PlaceCategoryType, string> = {
   SHOPPING: "mua sắm"
 };
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — keep recommendations in sync with DB
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === "object" && value !== null && "toNumber" in value) {
+    try {
+      const parsed = (value as { toNumber: () => number }).toNumber();
+      return Number.isFinite(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 // ==================== Module-level Cache ====================
 
@@ -200,9 +219,11 @@ function cosineSimilarity(
 // ==================== User Profile Building ====================
 
 async function buildUserProfile(userId: number): Promise<UserProfileVector> {
-  // Fetch user's favorites with place data
   const favorites = await prisma.favorite.findMany({
-    where: { userId },
+    where: {
+      userId,
+      place: { ...notDeleted, status: "APPROVED" },
+    },
     include: {
       place: {
         select: {
@@ -216,9 +237,12 @@ async function buildUserProfile(userId: number): Promise<UserProfileVector> {
     orderBy: { saveAt: 'desc' }
   });
 
-  // Fetch user's reviews with place data
   const reviews = await prisma.review.findMany({
-    where: { userId },
+    where: {
+      userId,
+      ...notDeleted,
+      place: { ...notDeleted, status: "APPROVED" },
+    },
     include: {
       place: {
         select: {
@@ -231,13 +255,13 @@ async function buildUserProfile(userId: number): Promise<UserProfileVector> {
     }
   });
 
-  // Fetch user's trip activities with place data
   const tripActivities = await prisma.tripActivity.findMany({
     where: {
       tripDay: {
-        trip: { userId }
+        trip: { userId, ...notDeleted }
       },
-      placeId: { not: null }
+      placeId: { not: null },
+      place: { ...notDeleted, status: "APPROVED" },
     },
     include: {
       place: {
@@ -291,16 +315,19 @@ async function buildUserProfile(userId: number): Promise<UserProfileVector> {
     }
   }
 
-  // Calculate price preference from favorites and high-rated reviews
   const priceLevels: number[] = [];
   for (const fav of favorites) {
-    if (fav.place.priceLevel !== null) {
-      priceLevels.push(fav.place.priceLevel);
+    const price = toNumberOrNull(fav.place.priceLevel);
+    if (price !== null) {
+      priceLevels.push(price);
     }
   }
   for (const review of reviews) {
-    if (review.rating >= 4 && review.place.priceLevel !== null) {
-      priceLevels.push(review.place.priceLevel);
+    if (review.rating >= 4) {
+      const price = toNumberOrNull(review.place.priceLevel);
+      if (price !== null) {
+        priceLevels.push(price);
+      }
     }
   }
 
@@ -416,21 +443,20 @@ async function computeSerendipityScore(
 // ==================== Collaborative Filtering ====================
 
 async function findSimilarUsers(userId: number, limit: number = 10): Promise<Array<{ userId: number; similarity: number }>> {
-  // Get user's favorite place IDs
   const userFavorites = await prisma.favorite.findMany({
-    where: { userId },
+    where: { userId, place: { ...notDeleted, status: "APPROVED" } },
     select: { placeId: true }
   });
   const userFavIds = new Set(userFavorites.map(f => f.placeId));
 
   if (userFavIds.size === 0) return [];
 
-  // Find users with overlapping favorites
   const overlappingUsers = await prisma.favorite.groupBy({
     by: ['userId'],
     where: {
       userId: { not: userId },
-      placeId: { in: Array.from(userFavIds) }
+      placeId: { in: Array.from(userFavIds) },
+      place: { ...notDeleted, status: "APPROVED" }
     },
     _count: { userId: true }
   });
@@ -440,7 +466,7 @@ async function findSimilarUsers(userId: number, limit: number = 10): Promise<Arr
   for (const group of overlappingUsers) {
     const otherUserId = group.userId;
     const otherFavorites = await prisma.favorite.findMany({
-      where: { userId: otherUserId },
+      where: { userId: otherUserId, place: { ...notDeleted, status: "APPROVED" } },
       select: { placeId: true }
     });
     const otherFavIds = new Set(otherFavorites.map(f => f.placeId));
@@ -469,12 +495,12 @@ async function getCollaborativeRecommendations(
 
   if (similarUsers.length === 0) return [];
 
-  // Get favorites from similar users that current user hasn't saved
   const similarUserIds = similarUsers.map(u => u.userId);
   const candidateFavorites = await prisma.favorite.findMany({
     where: {
       userId: { in: similarUserIds },
-      placeId: { notIn: Array.from(profile.favoritePlaceIds) }
+      placeId: { notIn: Array.from(profile.favoritePlaceIds) },
+      place: { ...notDeleted, status: "APPROVED" }
     },
     include: {
       place: {
@@ -516,8 +542,22 @@ async function getCollaborativeRecommendations(
     const rawScore = placeScores.get(fav.placeId) || 0;
     const normalizedScore = rawScore / maxScore;
 
+    const rawPlace = fav.place as any;
     scoredPlaces.push({
-      place: fav.place as PlaceData,
+      place: {
+        id: rawPlace.id,
+        name: rawPlace.name,
+        region: rawPlace.region,
+        category: rawPlace.category as PlaceCategoryType,
+        coverImageUrl: rawPlace.coverImageUrl,
+        featureLabel: rawPlace.featureLabel,
+        averageRating: toNumberOrNull(rawPlace.averageRating) ?? 0,
+        ratingCount: rawPlace.ratingCount,
+        about: rawPlace.about,
+        priceLevel: toNumberOrNull(rawPlace.priceLevel),
+        latitude: toNumberOrNull(rawPlace.latitude),
+        longitude: toNumberOrNull(rawPlace.longitude),
+      },
       score: normalizedScore,
       explanation: "Người dùng có sở thích tương tự cũng thích"
     });
@@ -596,7 +636,8 @@ async function getAllPlaces(): Promise<PlaceData[]> {
 
   const places = await prisma.place.findMany({
     where: {
-      status: "APPROVED"
+      status: "APPROVED",
+      ...notDeleted,
     },
     select: {
       id: true,
@@ -614,8 +655,23 @@ async function getAllPlaces(): Promise<PlaceData[]> {
     }
   });
 
+  const normalized: PlaceData[] = places.map((p) => ({
+    id: p.id,
+    name: p.name,
+    region: p.region,
+    category: p.category as PlaceCategoryType,
+    coverImageUrl: p.coverImageUrl,
+    featureLabel: p.featureLabel,
+    averageRating: toNumberOrNull(p.averageRating) ?? 0,
+    ratingCount: p.ratingCount,
+    about: p.about,
+    priceLevel: toNumberOrNull(p.priceLevel),
+    latitude: toNumberOrNull(p.latitude),
+    longitude: toNumberOrNull(p.longitude),
+  }));
+
   placeDataCache = {
-    data: places as PlaceData[],
+    data: normalized,
     createdAt: now
   };
 
