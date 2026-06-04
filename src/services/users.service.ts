@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import { toAuthUserDto } from "./userDto.js";
+import { notDeleted } from "../utils/softDelete.js";
 
 const userSelect = {
   id: true,
@@ -24,8 +25,8 @@ const patchSchema = z
 
 export const usersService = {
   async me(userId: number) {
-    const u = await prisma.user.findUnique({
-      where: { id: userId },
+    const u = await prisma.user.findFirst({
+      where: { id: userId, ...notDeleted },
       select: userSelect,
     });
     if (!u) throw Object.assign(new Error("NOT_FOUND"), { statusCode: 404 });

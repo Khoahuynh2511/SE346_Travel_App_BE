@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
+import { notDeleted } from "../utils/softDelete.js";
 
 const diaryEntryInclude = Prisma.validator<Prisma.TripDiaryEntryInclude>()({
   images: { orderBy: { sortOrder: "asc" } },
@@ -42,7 +43,7 @@ export const tripDiaryService = {
     await assertCanEditTrip(userId, tripId);
 
     const entries = await prisma.tripDiaryEntry.findMany({
-      where: { tripId, userId },
+      where: { tripId, userId, ...notDeleted },
       include: diaryEntryInclude,
       orderBy: [{ occurredAt: "asc" }, { createdAt: "asc" }],
     });
@@ -62,6 +63,7 @@ export const tripDiaryService = {
         content: input.content,
         locationName: input.locationName ?? null,
         occurredAt: input.occurredAt,
+        deletedAt: null,
         images: input.imageUrls.length
           ? {
               create: input.imageUrls.map((url, index) => ({
@@ -78,8 +80,8 @@ export const tripDiaryService = {
   },
 
   async update(userId: number, entryId: string, body: unknown) {
-    const existing = await prisma.tripDiaryEntry.findUnique({
-      where: { id: entryId },
+    const existing = await prisma.tripDiaryEntry.findFirst({
+      where: { id: entryId, ...notDeleted },
       select: { id: true, userId: true },
     });
     if (!existing) {
@@ -116,8 +118,8 @@ export const tripDiaryService = {
       });
     });
 
-    const entry = await prisma.tripDiaryEntry.findUnique({
-      where: { id: entryId },
+    const entry = await prisma.tripDiaryEntry.findFirst({
+      where: { id: entryId, ...notDeleted },
       include: diaryEntryInclude,
     });
     if (!entry) {
@@ -128,10 +130,14 @@ export const tripDiaryService = {
   },
 
   async remove(userId: number, entryId: string) {
-    const result = await prisma.tripDiaryEntry.deleteMany({
+    const result = await prisma.tripDiaryEntry.updateMany({
       where: {
         id: entryId,
         userId,
+        ...notDeleted,
+      },
+      data: {
+        deletedAt: new Date(),
       },
     });
 
@@ -145,6 +151,7 @@ async function assertCanEditTrip(userId: number, tripId: string) {
   const trip = await prisma.trip.findFirst({
     where: {
       id: tripId,
+      ...notDeleted,
       OR: [
         { userId },
         {
@@ -161,7 +168,7 @@ async function assertCanEditTrip(userId: number, tripId: string) {
   });
 
   if (!trip) {
-    const exists = await prisma.trip.findUnique({ where: { id: tripId }, select: { id: true } });
+    const exists = await prisma.trip.findFirst({ where: { id: tripId, ...notDeleted }, select: { id: true } });
     throw Object.assign(new Error(exists ? "FORBIDDEN" : "TRIP_NOT_FOUND"), {
       statusCode: exists ? 403 : 404,
     });

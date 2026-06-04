@@ -2,6 +2,7 @@ import { PlaceCategory, PlaceStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import { notificationService } from "./notification.service.js";
+import { notDeleted } from "../utils/softDelete.js";
 
 const placeCategorySchema = z.enum([
   "ATTRACTIONS",
@@ -12,8 +13,8 @@ const placeCategorySchema = z.enum([
 ]);
 
 const scheduleSchema = z.object({
-  startDate: z.string().min(1),
-  endDate: z.string().min(1),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
   days: z.array(z.string()),
   startTime: z.string().default(""),
   endTime: z.string().default(""),
@@ -151,8 +152,8 @@ function toPromotionDto(p: {
   title: string;
   isActive: boolean;
   activeAt: Date | null;
-  startDate: string;
-  endDate: string;
+  startDate: Date;
+  endDate: Date;
   days: string[];
   startTime: string;
   endTime: string;
@@ -164,8 +165,8 @@ function toPromotionDto(p: {
     isActive: p.isActive,
     activeAt: p.activeAt?.toISOString() ?? null,
     schedule: {
-      startDate: p.startDate,
-      endDate: p.endDate,
+      startDate: p.startDate.toISOString(),
+      endDate: p.endDate.toISOString(),
       days: p.days,
       startTime: p.startTime,
       endTime: p.endTime,
@@ -176,7 +177,7 @@ function toPromotionDto(p: {
 
 async function assertOwnedPlace(ownerId: number, placeId: string) {
   const place = await prisma.place.findFirst({
-    where: { id: placeId, ownerId },
+    where: { id: placeId, ownerId, ...notDeleted },
   });
   if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
   return place;
@@ -193,8 +194,8 @@ async function createPromotionsForPlace(
       title: item.title,
       isActive: item.isActive ?? true,
       activeAt: (item.isActive ?? true) ? new Date() : null,
-      startDate: item.schedule.startDate,
-      endDate: item.schedule.endDate,
+      startDate: new Date(item.schedule.startDate),
+      endDate: new Date(item.schedule.endDate),
       days: item.schedule.days,
       startTime: item.schedule.startTime,
       endTime: item.schedule.endTime,
@@ -243,7 +244,7 @@ function pickFeaturedActiveCampaignPlace(
 export const ownerService = {
   async getDashboard(ownerId: number) {
     const places = await prisma.place.findMany({
-      where: { ownerId },
+      where: { ownerId, ...notDeleted },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -252,6 +253,7 @@ export const ownerService = {
         averageRating: true,
         ratingCount: true,
         promotions: {
+          where: notDeleted,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -262,6 +264,7 @@ export const ownerService = {
           },
         },
         reviews: {
+          where: notDeleted,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -296,7 +299,7 @@ export const ownerService = {
     const [reviewTotals, favoriteTotals, currentMonthSaves, previousMonthSaves] = await Promise.all([
       prisma.review.groupBy({
         by: ["placeId"],
-        where: { placeId: { in: placeIds } },
+        where: { placeId: { in: placeIds }, ...notDeleted },
         _count: { _all: true },
       }),
       prisma.favorite.groupBy({
@@ -394,7 +397,7 @@ export const ownerService = {
 
   async listPlaces(ownerId: number) {
     const list = await prisma.place.findMany({
-      where: { ownerId },
+      where: { ownerId, ...notDeleted },
       orderBy: { name: "asc" },
       include: { images: { orderBy: { createdAt: "asc" } } },
     });
@@ -403,9 +406,9 @@ export const ownerService = {
 
   async getPlace(ownerId: number, placeId: string) {
     const place = await prisma.place.findFirst({
-      where: { id: placeId, ownerId },
+      where: { id: placeId, ownerId, ...notDeleted },
       include: {
-        promotions: { orderBy: { createdAt: "desc" } },
+        promotions: { where: notDeleted, orderBy: { createdAt: "desc" } },
         images: { orderBy: { createdAt: "asc" } },
       },
     });
@@ -428,6 +431,7 @@ export const ownerService = {
         latitude: data.latitude ?? null,
         longitude: data.longitude ?? null,
         status: "PENDING",
+        deletedAt: null,
       },
     });
     const imageUrls = uniqueUrls(data.imageUrls ?? []).filter((url) => url !== data.coverImageUrl);
@@ -494,13 +498,13 @@ export const ownerService = {
 
   async deletePlace(ownerId: number, placeId: string) {
     await assertOwnedPlace(ownerId, placeId);
-    await prisma.place.delete({ where: { id: placeId } });
+    await prisma.place.update({ where: { id: placeId }, data: { deletedAt: new Date() } });
   },
 
   async listPromotions(ownerId: number, placeId: string) {
     await assertOwnedPlace(ownerId, placeId);
     const list = await prisma.promotion.findMany({
-      where: { placeId },
+      where: { placeId, ...notDeleted },
       orderBy: { createdAt: "desc" },
     });
     return list.map(toPromotionDto);
@@ -515,12 +519,13 @@ export const ownerService = {
         title: data.title,
         isActive: data.isActive ?? true,
         activeAt: (data.isActive ?? true) ? new Date() : null,
-        startDate: data.schedule.startDate,
-        endDate: data.schedule.endDate,
+        startDate: new Date(data.schedule.startDate),
+        endDate: new Date(data.schedule.endDate),
         days: data.schedule.days,
         startTime: data.schedule.startTime,
         endTime: data.schedule.endTime,
         specificTime: data.schedule.specificTime,
+        deletedAt: null,
       },
     });
     await createNotificationSideEffect(() =>
@@ -535,8 +540,8 @@ export const ownerService = {
   },
 
   async updatePromotion(ownerId: number, promotionId: string, body: unknown) {
-    const promo = await prisma.promotion.findUnique({
-      where: { id: promotionId },
+    const promo = await prisma.promotion.findFirst({
+      where: { id: promotionId, ...notDeleted },
       include: { place: { select: { ownerId: true } } },
     });
     if (!promo || promo.place.ownerId !== ownerId) {
@@ -555,8 +560,8 @@ export const ownerService = {
           ? { activeAt: new Date() }
           : {}),
         ...(data.isActive === false ? { activeAt: null } : {}),
-        ...(data.schedule?.startDate !== undefined ? { startDate: data.schedule.startDate } : {}),
-        ...(data.schedule?.endDate !== undefined ? { endDate: data.schedule.endDate } : {}),
+        ...(data.schedule?.startDate !== undefined ? { startDate: new Date(data.schedule.startDate) } : {}),
+        ...(data.schedule?.endDate !== undefined ? { endDate: new Date(data.schedule.endDate) } : {}),
         ...(data.schedule?.days !== undefined ? { days: data.schedule.days } : {}),
         ...(data.schedule?.startTime !== undefined ? { startTime: data.schedule.startTime } : {}),
         ...(data.schedule?.endTime !== undefined ? { endTime: data.schedule.endTime } : {}),
@@ -569,19 +574,19 @@ export const ownerService = {
   },
 
   async deletePromotion(ownerId: number, promotionId: string) {
-    const promo = await prisma.promotion.findUnique({
-      where: { id: promotionId },
+    const promo = await prisma.promotion.findFirst({
+      where: { id: promotionId, ...notDeleted },
       include: { place: { select: { ownerId: true } } },
     });
     if (!promo || promo.place.ownerId !== ownerId) {
       throw Object.assign(new Error("PROMOTION_NOT_FOUND"), { statusCode: 404 });
     }
-    await prisma.promotion.delete({ where: { id: promotionId } });
+    await prisma.promotion.update({ where: { id: promotionId }, data: { deletedAt: new Date() } });
   },
 
   async togglePromotion(ownerId: number, promotionId: string) {
-    const promo = await prisma.promotion.findUnique({
-      where: { id: promotionId },
+    const promo = await prisma.promotion.findFirst({
+      where: { id: promotionId, ...notDeleted },
       include: { place: { select: { ownerId: true } } },
     });
     if (!promo || promo.place.ownerId !== ownerId) {

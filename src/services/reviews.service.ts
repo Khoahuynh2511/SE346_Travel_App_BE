@@ -3,10 +3,11 @@ import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
 import { notificationService } from "./notification.service.js";
 import { realtimeService } from "./realtime.service.js";
+import { notDeleted } from "../utils/softDelete.js";
 
 async function recalcPlaceStats(placeId: string) {
   const agg = await prisma.review.aggregate({
-    where: { placeId },
+    where: { placeId, ...notDeleted },
     _avg: { rating: true },
     _count: true,
   });
@@ -69,13 +70,13 @@ function mapReviewListItem(r: {
 
 export const reviewsService = {
   async listForPlace(placeId: string, paging: Pagination) {
-    const place = await prisma.place.findUnique({
-      where: { id: placeId },
+    const place = await prisma.place.findFirst({
+      where: { id: placeId, ...notDeleted },
       select: { id: true },
     });
     if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
 
-    const where = { placeId };
+    const where = { placeId, ...notDeleted };
     const [total, list] = await Promise.all([
       prisma.review.count({ where }),
       prisma.review.findMany({
@@ -100,13 +101,14 @@ export const reviewsService = {
   },
 
   async listForUser(userId: number, paging: Pagination) {
-    const where = { userId };
+    const where = { userId, ...notDeleted };
     const [total, list] = await Promise.all([
       prisma.review.count({ where }),
       prisma.review.findMany({
         where,
         include: {
           place: {
+            where: notDeleted,
             include: { images: { orderBy: { createdAt: "asc" } } },
           },
           images: true,
@@ -144,7 +146,7 @@ export const reviewsService = {
 
   async create(placeId: string, userId: number, body: unknown) {
     const data = createReviewSchema.parse(body);
-    const place = await prisma.place.findUnique({ where: { id: placeId } });
+    const place = await prisma.place.findFirst({ where: { id: placeId, ...notDeleted } });
     if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
 
     const rev = await prisma.review.create({
@@ -153,6 +155,7 @@ export const reviewsService = {
         userId,
         rating: data.rating,
         content: data.content,
+        deletedAt: null,
         images: data.imageUrls?.length
           ? { create: data.imageUrls.map((url) => ({ url })) }
           : undefined,
@@ -167,7 +170,7 @@ export const reviewsService = {
   },
 
   async toggleLike(reviewId: string, userId: number) {
-    const rev = await prisma.review.findUnique({ where: { id: reviewId } });
+    const rev = await prisma.review.findFirst({ where: { id: reviewId, ...notDeleted } });
     if (!rev) throw Object.assign(new Error("REVIEW_NOT_FOUND"), { statusCode: 404 });
 
     const existing = await prisma.reviewLike.findFirst({
@@ -191,7 +194,7 @@ export const reviewsService = {
 
   async update(reviewId: string, userId: number, body: unknown) {
     const data = updateReviewSchema.parse(body);
-    const rev = await prisma.review.findUnique({ where: { id: reviewId } });
+    const rev = await prisma.review.findFirst({ where: { id: reviewId, ...notDeleted } });
     if (!rev) throw Object.assign(new Error("REVIEW_NOT_FOUND"), { statusCode: 404 });
     if (rev.userId !== userId)
       throw Object.assign(new Error("FORBIDDEN"), { statusCode: 403 });
@@ -216,8 +219,8 @@ export const reviewsService = {
     });
     await recalcPlaceStats(placeId);
 
-    const updatedRev = await prisma.review.findUnique({
-      where: { id: reviewId },
+    const updatedRev = await prisma.review.findFirst({
+      where: { id: reviewId, ...notDeleted },
       include: {
         user: { select: { fullName: true, username: true, avatarUrl: true } },
         images: true,
@@ -229,13 +232,13 @@ export const reviewsService = {
   },
 
   async remove(reviewId: string, userId: number) {
-    const rev = await prisma.review.findUnique({ where: { id: reviewId } });
+    const rev = await prisma.review.findFirst({ where: { id: reviewId, ...notDeleted } });
     if (!rev) throw Object.assign(new Error("REVIEW_NOT_FOUND"), { statusCode: 404 });
     if (rev.userId !== userId)
       throw Object.assign(new Error("FORBIDDEN"), { statusCode: 403 });
 
     const placeId = rev.placeId;
-    await prisma.review.delete({ where: { id: reviewId } });
+    await prisma.review.update({ where: { id: reviewId }, data: { deletedAt: new Date() } });
     await recalcPlaceStats(placeId);
   },
 };

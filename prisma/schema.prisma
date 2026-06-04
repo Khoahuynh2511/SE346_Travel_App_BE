@@ -68,6 +68,7 @@ model User {
   isBanned      Boolean          @default(false)
   banReason     String?
   bannedAt      DateTime?
+  deletedAt     DateTime?
   createdAt     DateTime         @default(now())
   reviews       Review[]
   reviewLikes   ReviewLike[]
@@ -85,6 +86,7 @@ model User {
   chatMessages           ChatMessage[]
 
   @@index([role])
+  @@index([deletedAt])
 }
 
 model Place {
@@ -107,6 +109,7 @@ model Place {
   rejectionReason        String?
   reviewedAt             DateTime?
   reviewedBy             Int?
+  deletedAt              DateTime?
   owner                  User?          @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   reviewedByUser         User?          @relation("PlaceReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
   reviews                Review[]
@@ -119,6 +122,7 @@ model Place {
   @@index([category])
   @@index([status])
   @@index([region])
+  @@index([deletedAt])
 }
 
 model PlaceImage {
@@ -134,17 +138,19 @@ model Promotion {
   placeId      String
   title        String
   isActive     Boolean   @default(true)
-  startDate    String
-  endDate      String
+  startDate    DateTime
+  endDate      DateTime
   days         String[]
   startTime    String    @default("")
   endTime      String    @default("")
   specificTime Boolean   @default(false)
   activeAt     DateTime?
   createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
   place        Place     @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@index([isActive])
+  @@index([deletedAt])
 }
 
 model Review {
@@ -153,6 +159,7 @@ model Review {
   userId    Int
   rating    Int
   content   String
+  deletedAt DateTime?
   createdAt DateTime      @default(now())
   place     Place         @relation(fields: [placeId], references: [id], onDelete: Cascade)
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -161,6 +168,7 @@ model Review {
 
   @@index([rating])
   @@index([placeId])
+  @@index([deletedAt])
 }
 
 model ReviewImage {
@@ -204,6 +212,7 @@ model Trip {
   totalBudgetPerPerson Decimal          @default(0) @db.Decimal(12, 2)
   coverImageUrl        String?
   currency             String           @default("VND")
+  deletedAt            DateTime?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -215,6 +224,7 @@ model Trip {
   @@index([userId])
   @@index([startDate, endDate])
   @@index([currentHotelPlaceId])
+  @@index([deletedAt])
 }
 
 model TripMember {
@@ -318,6 +328,7 @@ model TripDiaryEntry {
   content      String
   locationName String?
   occurredAt   DateTime
+  deletedAt    DateTime?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   trip         Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
@@ -327,6 +338,7 @@ model TripDiaryEntry {
   @@index([tripId])
   @@index([userId])
   @@index([occurredAt])
+  @@index([deletedAt])
 }
 
 model TripDiaryImage {

@@ -2,6 +2,7 @@ import { PlaceCategory } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
+import { notDeleted } from "../utils/softDelete.js";
 
 const placeCategorySchema = z.enum([
   "ATTRACTIONS",
@@ -43,8 +44,8 @@ function toPromotionDto(p: {
   title: string;
   isActive: boolean;
   activeAt: Date | null;
-  startDate: string;
-  endDate: string;
+  startDate: Date;
+  endDate: Date;
   days: string[];
   startTime: string;
   endTime: string;
@@ -56,8 +57,8 @@ function toPromotionDto(p: {
     isActive: p.isActive,
     activeAt: p.activeAt?.toISOString() ?? null,
     schedule: {
-      startDate: p.startDate,
-      endDate: p.endDate,
+      startDate: p.startDate.toISOString(),
+      endDate: p.endDate.toISOString(),
       days: p.days,
       startTime: p.startTime,
       endTime: p.endTime,
@@ -84,7 +85,7 @@ export const placesService = {
     const minRating = query.minRating ? parseFloat(query.minRating) : undefined;
     const maxPrice = query.maxPrice ? parseFloat(query.maxPrice) : undefined;
 
-    const where: Record<string, unknown> = { status: "APPROVED" };
+    const where: Record<string, unknown> = { status: "APPROVED", ...notDeleted };
 
     if (category) where.category = category;
 
@@ -141,15 +142,16 @@ export const placesService = {
   },
 
   async getById(placeId: string) {
-    const place = await prisma.place.findUnique({
-      where: { id: placeId },
+    const place = await prisma.place.findFirst({
+      where: { id: placeId, ...notDeleted },
       include: {
         images: { orderBy: { createdAt: "asc" } },
         promotions: {
-          where: { isActive: true },
+          where: { isActive: true, ...notDeleted },
           orderBy: { createdAt: "desc" },
         },
         reviews: {
+          where: notDeleted,
           include: {
             user: { select: { fullName: true, username: true, avatarUrl: true } },
             images: true,
@@ -198,14 +200,14 @@ export const placesService = {
   },
 
   async listPromotions(placeId: string) {
-    const place = await prisma.place.findUnique({
-      where: { id: placeId },
+    const place = await prisma.place.findFirst({
+      where: { id: placeId, ...notDeleted },
       select: { id: true },
     });
     if (!place) return null;
 
     const promotions = await prisma.promotion.findMany({
-      where: { placeId, isActive: true },
+      where: { placeId, isActive: true, ...notDeleted },
       orderBy: { createdAt: "desc" },
     });
 
