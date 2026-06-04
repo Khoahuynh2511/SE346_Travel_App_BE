@@ -1021,6 +1021,46 @@ const SEEDED_PLACES_DATA = [
   ...ADDED_PLACES_DATA,
 ];
 const PENDING_SEED_PLACE_COUNT = 4;
+const MULTI_IMAGE_SEED_PLACE_INDEXES = new Set([0, 1]);
+const HIGH_REVIEW_SEED_COUNT = 30;
+
+function getSeedPlaceImages(place: { images: string[] }, placeIndex: number) {
+  return MULTI_IMAGE_SEED_PLACE_INDEXES.has(placeIndex)
+    ? place.images.slice(0, 4)
+    : place.images.slice(0, 1);
+}
+
+function getReviewSeedContent(place: { reviews: { content: string }[] }, reviewIndex: number) {
+  const fallbackReviews = [
+    "Tráº£i nghiá»‡m ráº¥t á»•n, khÃ´ng gian Ä‘Ã¡ng ghÃ© vÃ  phÃ¹ há»£p cho lá»‹ch trÃ¬nh du lá»‹ch.",
+    "Dá»‹ch vá»¥ tá»‘t, vá»‹ trÃ­ thuáº­n tiá»‡n vÃ  nhÃ¢n viÃªn há»— trá»£ nhiá»‡t tÃ¬nh.",
+    "MÃ¬nh sáº½ quay láº¡i náº¿u cÃ³ dá»‹p, Ä‘áº·c biá»‡t lÃ  sau khi cÃ³ chÆ°Æ¡ng trÃ¬nh Æ°u Ä‘Ã£i.",
+  ];
+  return place.reviews[reviewIndex % place.reviews.length]?.content ?? fallbackReviews[reviewIndex % fallbackReviews.length];
+}
+
+function getReviewSeedRating(reviewIndex: number) {
+  const ratings = [5, 5, 4, 5, 4, 3];
+  return ratings[reviewIndex % ratings.length];
+}
+
+async function syncSeededPlaceStats(placeIds: string[]) {
+  for (const placeId of placeIds) {
+    const agg = await prisma.review.aggregate({
+      where: { placeId, deletedAt: null },
+      _avg: { rating: true },
+      _count: true,
+    });
+    const avg = agg._avg.rating ?? 0;
+    await prisma.place.update({
+      where: { id: placeId },
+      data: {
+        averageRating: Math.round(avg * 10) / 10,
+        ratingCount: agg._count,
+      },
+    });
+  }
+}
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
@@ -1085,9 +1125,8 @@ async function main() {
   // ── Places + Images + Reviews ──────────────────────────────────────────────
   const createdPlaces: string[] = [];
   const createdPlaceCoverImages: string[] = [];
-  const reviewData: Prisma.ReviewCreateManyInput[] = [];
   const promotionSevenPlaceIdx = SEEDED_PLACES_DATA.length - 7;
-  const reviewTimelinePlaceIndexes = new Set([0, promotionSevenPlaceIdx]);
+  const highReviewPlaceIndexes = [0, 1, 2, 3, promotionSevenPlaceIdx];
 
   for (let i = 0; i < SEEDED_PLACES_DATA.length; i++) {
     const p = SEEDED_PLACES_DATA[i];
@@ -1101,7 +1140,7 @@ async function main() {
     const uploadedImages = await uploadSeedImages({
       storage, bucket,
       prefix: `seed/places/${slug}`,
-      imageUrls: p.images,
+      imageUrls: getSeedPlaceImages(p, i),
     });
 
     const place = await prisma.place.create({
@@ -1125,21 +1164,6 @@ async function main() {
         data: uploadedImages.slice(1).map((url) => ({ placeId: place.id, url })),
       });
     }
-
-    const seededReviews = reviewTimelinePlaceIndexes.has(i)
-      ? p.reviews.slice(0, 2)
-      : p.reviews;
-    reviewData.push(
-      ...seededReviews.filter((rev) => rev.userIdx < travelerUsers.length).map((rev, reviewIdx) => ({
-        placeId: place.id,
-        userId: travelerUsers[rev.userIdx].id,
-        rating: rev.rating,
-        content: rev.content,
-        createdAt: reviewTimelinePlaceIndexes.has(i)
-          ? new Date(Date.UTC(2026, 4, 30, 8 + reviewIdx, 0, 0))
-          : undefined,
-      })),
-    );
 
   }
 
@@ -1175,30 +1199,8 @@ async function main() {
     }
   }
 
-  if (reviewData.length > 0) {
-    await prisma.review.createMany({
-      data: reviewData,
-    });
-  }
-
   // ── Promotions ─────────────────────────────────────────────────────────────
   console.log("🎫 Creating promotions...");
-  const demoReviewAtFirstPlace = await prisma.review.findFirstOrThrow({
-    where: { placeId: createdPlaces[0], userId: travelerUsers[0].id },
-    select: { id: true },
-  });
-  const demoReviewAtThirdPlace = await prisma.review.findFirstOrThrow({
-    where: { placeId: createdPlaces[2], userId: travelerUsers[0].id },
-    select: { id: true },
-  });
-  await prisma.reviewLike.createMany({
-    data: [
-      { reviewId: demoReviewAtFirstPlace.id, userId: ownerUser.id },
-      { reviewId: demoReviewAtThirdPlace.id, userId: travelerUsers[2].id },
-    ],
-    skipDuplicates: true,
-  });
-
   const promoTemplates = [
     { title: "Giảm 20% Tour Khám Phá",        isActive: true,  startDate: "01/06/2026", endDate: "30/06/2026", days: ["T2","T3","T4","T5","T6"], startTime: "08:00 AM", endTime: "05:00 PM", specificTime: true  },
     { title: "Combo Gia Đình - Tiết Kiệm 30%", isActive: true,  startDate: "15/06/2026", endDate: "15/08/2026", days: ["T7","CN"],                startTime: "09:00 AM", endTime: "06:00 PM", specificTime: true  },
@@ -1237,6 +1239,47 @@ async function main() {
       }),
     );
   }
+
+  const reviewStartByPlaceId = new Map<string, Date>();
+  for (const promotion of createdPromotions) {
+    const currentStart = reviewStartByPlaceId.get(promotion.placeId);
+    const candidateStart = promotion.activeAt ?? promotion.startDate;
+    if (!currentStart || candidateStart.getTime() > currentStart.getTime()) {
+      reviewStartByPlaceId.set(promotion.placeId, candidateStart);
+    }
+  }
+
+  const seededReviewData: Prisma.ReviewCreateManyInput[] = highReviewPlaceIndexes.flatMap((placeIdx) => {
+    const placeId = createdPlaces[placeIdx];
+    const place = SEEDED_PLACES_DATA[placeIdx];
+    const reviewStart = reviewStartByPlaceId.get(placeId) ?? new Date("2026-06-01T00:00:00.000Z");
+
+    return Array.from({ length: HIGH_REVIEW_SEED_COUNT }, (_, reviewIdx) => ({
+      placeId,
+      userId: travelerUsers[reviewIdx % travelerUsers.length].id,
+      rating: getReviewSeedRating(reviewIdx),
+      content: getReviewSeedContent(place, reviewIdx),
+      createdAt: new Date(reviewStart.getTime() + (reviewIdx + 1) * 60 * 60 * 1000),
+    }));
+  });
+  await prisma.review.createMany({ data: seededReviewData });
+
+  const demoReviewAtFirstPlace = await prisma.review.findFirstOrThrow({
+    where: { placeId: createdPlaces[0], userId: travelerUsers[0].id },
+    select: { id: true },
+  });
+  const demoReviewAtThirdPlace = await prisma.review.findFirstOrThrow({
+    where: { placeId: createdPlaces[2], userId: travelerUsers[0].id },
+    select: { id: true },
+  });
+  await prisma.reviewLike.createMany({
+    data: [
+      { reviewId: demoReviewAtFirstPlace.id, userId: ownerUser.id },
+      { reviewId: demoReviewAtThirdPlace.id, userId: travelerUsers[2].id },
+    ],
+    skipDuplicates: true,
+  });
+  const postActiveReviewCount = seededReviewData.length;
 
   const postActiveFavoriteSeeds = [
     { promotionIdx: 0, userIndexes: [1, 2, 3, 4] },
@@ -1295,50 +1338,20 @@ async function main() {
     }
   }
 
-  const promotionReviewTimelines = [
-    { promotionIdx: 0, beforeActive: 2, targetTotal: 10, addAfterActive: 8 },
-    { promotionIdx: 7, beforeActive: 1, targetTotal: 15, addAfterActive: 14 },
-  ];
-  let postActiveReviewCount = 0;
-  for (const timeline of promotionReviewTimelines) {
-    const promotion = createdPromotions[timeline.promotionIdx];
-    if (!promotion.activeAt) {
-      throw new Error(`Promotion index ${timeline.promotionIdx} must be active for review timeline seed`);
-    }
-
-    await prisma.review.createMany({
-      data: Array.from({ length: timeline.addAfterActive }, (_, offset) => ({
-        placeId: promotion.placeId,
-        userId: travelerUsers[offset % travelerUsers.length].id,
-        rating: 4 + (offset % 2),
-        content: `Review seeded after promotion index ${timeline.promotionIdx} activation #${offset + 1}`,
-        createdAt: new Date(promotion.activeAt!.getTime() + (offset + 1) * 60 * 60 * 1000),
-      })),
-    });
-    postActiveReviewCount += timeline.addAfterActive;
-
-    const [beforeActive, totalReviews, reviewImages] = await Promise.all([
-      prisma.review.count({
-        where: { placeId: promotion.placeId, createdAt: { lt: promotion.activeAt } },
-      }),
-      prisma.review.count({ where: { placeId: promotion.placeId } }),
-      prisma.reviewImage.count({
-        where: {
-          review: {
-            placeId: promotion.placeId,
-            createdAt: { gt: promotion.activeAt },
-          },
-        },
-      }),
-    ]);
-    if (beforeActive !== timeline.beforeActive || totalReviews !== timeline.targetTotal || reviewImages !== 0) {
-      throw new Error(
-        `Promotion index ${timeline.promotionIdx} review seed mismatch: ` +
-        `before=${beforeActive}/${timeline.beforeActive}, total=${totalReviews}/${timeline.targetTotal}, ` +
-        `postActiveImages=${reviewImages}/0`,
-      );
+  const reviewCountsByPlace = await prisma.review.groupBy({
+    by: ["placeId"],
+    _count: true,
+  });
+  const reviewCountMap = new Map(reviewCountsByPlace.map((row) => [row.placeId, row._count]));
+  const highReviewPlaceIdSet = new Set(highReviewPlaceIndexes.map((placeIdx) => createdPlaces[placeIdx]));
+  for (const placeId of createdPlaces) {
+    const expectedCount = highReviewPlaceIdSet.has(placeId) ? HIGH_REVIEW_SEED_COUNT : 0;
+    const actualCount = reviewCountMap.get(placeId) ?? 0;
+    if (actualCount !== expectedCount) {
+      throw new Error(`Review seed mismatch for place ${placeId}: ${actualCount}/${expectedCount}`);
     }
   }
+  await syncSeededPlaceStats(createdPlaces);
 
   // Trips for GET /api/v1/users/me/trips
   console.log("Creating sample trips...");
