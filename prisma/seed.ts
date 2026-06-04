@@ -65,6 +65,10 @@ async function fetchImageBuffer(imageUrl: string) {
 async function uploadSeedImage(params: {
   storage: any; bucket: string; objectPath: string; imageUrl: string;
 }) {
+  if (process.env.SEED_SKIP_IMAGE_UPLOAD === "1") {
+    return params.imageUrl;
+  }
+
   try {
     const { contentType, fileBuffer } = await fetchImageBuffer(params.imageUrl);
 

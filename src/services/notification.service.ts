@@ -163,7 +163,7 @@ export const notificationService = {
 
     const { tripMembersService } = await import("./tripMembers.services.js");
     const data = await tripMembersService.acceptInvitation(userId, tripId);
-    await this.markRead(userId, recipientId);
+    await deleteNotificationWithRecipient(recipient.notificationId);
     return { ok: true, data };
   },
 
@@ -174,7 +174,7 @@ export const notificationService = {
 
     const { tripMembersService } = await import("./tripMembers.services.js");
     const data = await tripMembersService.rejectInvitation(userId, tripId);
-    await this.markRead(userId, recipientId);
+    await deleteNotificationWithRecipient(recipient.notificationId);
     return { ok: true, data };
   },
 
@@ -560,6 +560,12 @@ async function assertUserRecipient(userId: number, recipientId: string) {
     throw Object.assign(new Error("NOTIFICATION_NOT_FOUND"), { statusCode: 404 });
   }
   return recipient;
+}
+
+async function deleteNotificationWithRecipient(notificationId: string) {
+  await prisma.notification.delete({
+    where: { id: notificationId },
+  });
 }
 
 function assertType(recipient: RecipientWithNotification, type: NotificationType) {
