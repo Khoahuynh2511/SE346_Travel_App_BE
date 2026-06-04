@@ -55,6 +55,17 @@ enum NotificationType {
   place_rejected
 }
 
+model PendingUser {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  passwordHash      String
+  fullName          String?
+  role              UserRole @default(TRAVELER)
+  verificationToken String   @unique
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+}
+
 model User {
   id            Int              @id @default(autoincrement())
   email         String           @unique
@@ -70,6 +81,15 @@ model User {
   bannedAt      DateTime?
   deletedAt     DateTime?
   createdAt     DateTime         @default(now())
+
+  // Email verification and OTP fields
+  emailVerified      Boolean          @default(false)
+  verificationToken  String?          @unique
+  verificationExpires DateTime?
+  otpCode            String?
+  otpExpiresAt       DateTime?
+  otpLastSentAt      DateTime?
+
   reviews       Review[]
   reviewLikes   ReviewLike[]
   favorites     Favorite[]

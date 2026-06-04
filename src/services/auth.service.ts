@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomBytes } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import { z } from "zod";
 import { OAuth2Client } from "google-auth-library";
 import { env } from "../config/env.js";
@@ -8,10 +8,11 @@ import { getSupabaseAdmin } from "../integrations/supabaseAdmin.js";
 import type { AppJwtPayload } from "../middleware/auth.js";
 import { prisma } from "../database/client.js";
 import { toAuthUserDto } from "./userDto.js";
+import { emailService } from "./email.service.js";
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8).regex(/[A-Z]/, 'Must contain uppercase').regex(/[a-z]/, 'Must contain lowercase').regex(/[0-9]/, 'Must contain number'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   fullName: z.string().min(1).optional(),
   role: z.enum(["TRAVELER", "OWNER"]).optional(),
 });
@@ -27,6 +28,12 @@ const forgotPasswordSchema = z.object({
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
+const changePasswordOtpSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().length(6),
   newPassword: z.string().min(8),
 });
 
@@ -97,42 +104,176 @@ async function deleteSupabaseAuthUser(userId: string) {
 export const authService = {
   async register(body: unknown) {
     const data = registerSchema.parse(body);
+
+    // Check if user already exists in permanent table
     const exists = await prisma.user.findUnique({ where: { email: data.email } });
     if (exists) throw Object.assign(new Error("EMAIL_TAKEN"), { statusCode: 409 });
+
     const passwordHash = await bcrypt.hash(data.password, 10);
-    const supabaseUser = await createSupabaseAuthUser(data.email, data.password);
+    const verificationToken = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Upsert into PendingUser (allow retry if previous attempt failed/expired)
+    await prisma.pendingUser.upsert({
+      where: { email: data.email },
+      update: {
+        passwordHash,
+        fullName: data.fullName ?? null,
+        role: data.role ?? "TRAVELER",
+        verificationToken,
+        expiresAt,
+      },
+      create: {
+        email: data.email,
+        passwordHash,
+        fullName: data.fullName ?? null,
+        role: data.role ?? "TRAVELER",
+        verificationToken,
+        expiresAt,
+      },
+    });
 
     try {
-      const user = await prisma.user.create({
-        data: {
-          email: data.email,
-          passwordHash,
-          role: data.role ?? "TRAVELER",
-          fullName: data.fullName ?? null,
-        },
-        select: {
-          id: true,
-          email: true,
-          fullName: true,
-          username: true,
-          avatarUrl: true,
-          location: true,
-          role: true,
-        },
-      });
-      const accessToken = this.signToken(user.id, user.email);
-      const refreshToken = await this.generateRefreshToken(user.id);
-      return { accessToken, refreshToken, userId: user.id, user: toAuthUserDto(user) };
+      await emailService.sendVerificationEmail(data.email, verificationToken);
     } catch (error) {
-      if (supabaseUser?.id) {
-        await deleteSupabaseAuthUser(supabaseUser.id);
-      }
-      // Check if this is a duplicate email constraint error
-      if (error instanceof Error && (error.message.includes("Unique constraint") || error.message.includes("unique"))) {
-        throw Object.assign(new Error("EMAIL_TAKEN"), { statusCode: 409 });
-      }
-      throw error;
+      console.error("Failed to send verification email:", error);
+      throw Object.assign(new Error("EMAIL_SEND_FAILED"), { statusCode: 500 });
     }
+
+    return {
+      message: "Please check your email to verify your account.",
+      email: data.email
+    };
+  },
+
+  async verifyEmail(token: string) {
+    const pending = await prisma.pendingUser.findUnique({
+      where: { verificationToken: token },
+    });
+
+    if (!pending) {
+      throw Object.assign(new Error("INVALID_TOKEN"), { statusCode: 400 });
+    }
+
+    if (pending.expiresAt < new Date()) {
+      await prisma.pendingUser.delete({ where: { id: pending.id } });
+      throw Object.assign(new Error("TOKEN_EXPIRED"), { statusCode: 400 });
+    }
+
+    // Hash a random password for Supabase since we don't have the original plain text password
+    const tempPasswordForSupabase = `Verify!${Math.random().toString(36).slice(-8)}123`;
+
+    // Move from PendingUser to User
+    const user = await prisma.user.create({
+      data: {
+        email: pending.email,
+        passwordHash: pending.passwordHash, // Keep the original local bcrypt hash
+        fullName: pending.fullName,
+        role: pending.role,
+        emailVerified: true,
+      },
+    });
+
+    // Cleanup pending record
+    await prisma.pendingUser.delete({ where: { id: pending.id } });
+
+    // Sync with Supabase Auth
+    try {
+      await createSupabaseAuthUser(user.email, tempPasswordForSupabase);
+    } catch (err) {
+      console.error("Supabase sync failed (non-critical):", err);
+    }
+
+    return { message: "Email verified successfully. You can now login." };
+  },
+
+  async resendVerification(email: string) {
+    const pending = await prisma.pendingUser.findUnique({ where: { email } });
+
+    if (!pending) {
+      // Check if already verified
+      const verified = await prisma.user.findUnique({ where: { email } });
+      if (verified) throw Object.assign(new Error("ALREADY_VERIFIED"), { statusCode: 400 });
+
+      throw Object.assign(new Error("USER_NOT_FOUND"), { statusCode: 404 });
+    }
+
+    const verificationToken = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await prisma.pendingUser.update({
+      where: { id: pending.id },
+      data: {
+        verificationToken,
+        expiresAt,
+      },
+    });
+
+    await emailService.sendVerificationEmail(email, verificationToken);
+
+    return { message: "Verification email resent successfully." };
+  },
+
+  async requestPasswordOtp(email: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return { message: "If the email exists, an OTP has been sent." };
+    }
+
+    if (user.otpLastSentAt && user.otpLastSentAt.getTime() + 2 * 60 * 1000 > Date.now()) {
+      throw Object.assign(new Error("OTP_TOO_FREQUENT"), { statusCode: 429 });
+    }
+
+    const otp = randomInt(100000, 999999).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        otpCode: otp,
+        otpExpiresAt: expires,
+        otpLastSentAt: new Date(),
+      },
+    });
+
+    await emailService.sendOtpEmail(email, otp);
+
+    return { message: "OTP sent successfully." };
+  },
+
+  async changePasswordWithOtp(body: unknown) {
+    const data = changePasswordOtpSchema.parse(body);
+    const user = await prisma.user.findUnique({ where: { email: data.email } });
+
+    if (!user || user.otpCode !== data.otp) {
+      throw Object.assign(new Error("INVALID_OTP"), { statusCode: 400 });
+    }
+
+    if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
+      throw Object.assign(new Error("OTP_EXPIRED"), { statusCode: 400 });
+    }
+
+    const passwordHash = await bcrypt.hash(data.newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        otpCode: null,
+        otpExpiresAt: null,
+      },
+    });
+
+    const admin = getSupabaseAdmin();
+    if (admin) {
+      const { data: suData } = await admin.auth.admin.listUsers();
+      const suUser = suData.users.find(u => u.email === data.email);
+      if (suUser) {
+        await admin.auth.admin.updateUserById(suUser.id, { password: data.newPassword });
+      }
+    }
+
+    return { message: "Password updated successfully." };
   },
 
   async login(body: unknown) {
@@ -148,15 +289,21 @@ export const authService = {
       throw Object.assign(new Error("USER_BANNED"), { statusCode: 403 });
     }
 
+    // Check if email is verified
+    if (!user.emailVerified) {
+      throw Object.assign(new Error("EMAIL_NOT_VERIFIED"), { statusCode: 403 });
+    }
+
     try {
       const ok = await bcrypt.compare(data.password, user.passwordHash);
-      if (!ok) throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
-    } catch (error) {
-      // If bcrypt throws an error (e.g., invalid hash format), treat as invalid credentials
-      if (error instanceof Error && error.message !== "INVALID_CREDENTIALS") {
+      if (!ok) {
+        console.log(`Login failed for ${data.email}: Password mismatch`);
         throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
       }
-      throw error;
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_CREDENTIALS") throw error;
+      console.error(`Login bcrypt error for ${data.email}:`, error);
+      throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
     }
 
     const accessToken = this.signToken(user.id, user.email);
@@ -172,11 +319,7 @@ export const authService = {
 
   async forgotPassword(body: unknown) {
     const data = forgotPasswordSchema.parse(body);
-    const user = await prisma.user.findUnique({ where: { email: data.email } });
-    if (!user) {
-      return { message: "If the email exists, reset instructions will be sent." };
-    }
-    return { message: "If the email exists, reset instructions will be sent." };
+    return await this.requestPasswordOtp(data.email);
   },
 
   async resetPassword(body: unknown) {
