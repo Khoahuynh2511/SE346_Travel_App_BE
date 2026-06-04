@@ -217,64 +217,35 @@ export const authService = {
     }
 
     const { email, name, picture } = payload;
-
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
 
     if (existingUser) {
-      // Check if user is banned
       if (existingUser.isBanned) {
         throw Object.assign(new Error("USER_BANNED"), { statusCode: 403 });
       }
-
-      // Log in existing user
       const accessToken = this.signToken(existingUser.id, existingUser.email);
       const refreshToken = await this.generateRefreshToken(existingUser.id);
-
       return {
-        accessToken,
-        refreshToken,
-        userId: existingUser.id,
-        user: toAuthUserDto(existingUser),
-        isNewUser: false,
+        accessToken, refreshToken, userId: existingUser.id,
+        user: toAuthUserDto(existingUser), isNewUser: false,
       };
     }
 
-    // Create new user from Google OAuth
     const randomPassword = randomBytes(32).toString('hex');
     const passwordHash = await bcrypt.hash(randomPassword, 10);
-
     const userRole = role === "OWNER" ? "OWNER" : "TRAVELER";
     const fullName = name || email.split('@')[0];
 
     const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        role: userRole,
-        fullName,
-        avatarUrl: picture || null,
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        username: true,
-        avatarUrl: true,
-        location: true,
-        role: true,
-      },
+      data: { email, passwordHash, role: userRole, fullName, avatarUrl: picture || null },
+      select: { id: true, email: true, fullName: true, username: true, avatarUrl: true, location: true, role: true },
     });
 
     const accessToken = this.signToken(user.id, user.email);
     const refreshToken = await this.generateRefreshToken(user.id);
-
     return {
-      accessToken,
-      refreshToken,
-      userId: user.id,
-      user: toAuthUserDto(user),
-      isNewUser: true,
+      accessToken, refreshToken, userId: user.id,
+      user: toAuthUserDto(user), isNewUser: true,
     };
   },
 
