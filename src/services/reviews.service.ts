@@ -215,7 +215,17 @@ export const reviewsService = {
       });
     });
     await recalcPlaceStats(placeId);
-    return { id: reviewId };
+
+    const updatedRev = await prisma.review.findUnique({
+      where: { id: reviewId },
+      include: {
+        user: { select: { fullName: true, username: true, avatarUrl: true } },
+        images: true,
+        _count: { select: { likes: true } },
+      },
+    });
+    if (!updatedRev) throw Object.assign(new Error("REVIEW_NOT_FOUND"), { statusCode: 404 });
+    return mapReviewListItem(updatedRev);
   },
 
   async remove(reviewId: string, userId: number) {

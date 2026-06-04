@@ -1,13 +1,23 @@
-import { PlaceCategory, PlaceStatus } from "@prisma/client";
+import { PlaceCategory, PlaceStatus, UserRole } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import { notificationService } from "./notification.service.js";
 import type { Pagination } from "../http/pagination.js";
 
 const statusFilterSchema = z.enum(["PENDING", "APPROVED", "REJECTED"]).optional();
+const roleFilterSchema = z.enum(["TRAVELER", "OWNER", "ADMIN"]).optional();
 
 const rejectPlaceBodySchema = z.object({
   rejectionReason: z.string().max(500).optional(),
+});
+
+const banUserBodySchema = z.object({
+  reason: z.string().max(500).optional(),
+  isBanned: z.boolean(),
+});
+
+const changeUserRoleBodySchema = z.object({
+  role: z.enum(["TRAVELER", "OWNER", "ADMIN"]),
 });
 
 function toAdminPlaceDto(p: {
@@ -197,5 +207,161 @@ export const adminService = {
 
     await prisma.place.delete({ where: { id: placeId } });
     return { ok: true };
+  },
+
+  async listUsers(
+    query: Record<string, string | undefined>,
+    _adminId: number,
+    paging: Pagination
+  ) {
+    const searchRaw = query.search;
+    const roleRaw = query.role;
+    const role = roleRaw
+      ? (roleFilterSchema.parse(roleRaw) as UserRole)
+      : undefined;
+
+    const where: {
+      role?: UserRole;
+      OR?: Array<{
+        username?: { contains: string; mode: "insensitive" };
+        email?: { contains: string; mode: "insensitive" };
+        fullName?: { contains: string; mode: "insensitive" };
+      }>;
+    } = {};
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (searchRaw) {
+      where.OR = [
+        { username: { contains: searchRaw, mode: "insensitive" } },
+        { email: { contains: searchRaw, mode: "insensitive" } },
+        { fullName: { contains: searchRaw, mode: "insensitive" } },
+      ];
+    }
+
+    const [total, list] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          fullName: true,
+          role: true,
+          isBanned: true,
+          createdAt: true,
+          _count: {
+            select: {
+              ownedPlaces: true,
+              reviews: true,
+            },
+          },
+        },
+        skip: paging.offset,
+        take: paging.limit,
+      }),
+    ]);
+
+    return {
+      items: list.map((u) => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        fullName: u.fullName,
+        role: u.role,
+        isBanned: u.isBanned,
+        createdAt: u.createdAt.toISOString(),
+        ownedPlacesCount: u._count.ownedPlaces,
+        reviewsCount: u._count.reviews,
+      })),
+      total,
+      limit: paging.limit,
+      offset: paging.offset,
+    };
+  },
+
+  async banUser(adminId: number, userId: string, body: unknown) {
+    const data = banUserBodySchema.parse(body);
+    const targetUserId = parseInt(userId, 10);
+
+    if (isNaN(targetUserId)) {
+      throw Object.assign(new Error("INVALID_USER_ID"), { statusCode: 400 });
+    }
+
+    // Cannot ban self
+    if (targetUserId === adminId) {
+      throw Object.assign(new Error("CANNOT_BAN_SELF"), { statusCode: 400 });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, role: true },
+    });
+
+    if (!targetUser) {
+      throw Object.assign(new Error("USER_NOT_FOUND"), { statusCode: 404 });
+    }
+
+    // Cannot ban other admins
+    if (targetUser.role === "ADMIN") {
+      throw Object.assign(new Error("CANNOT_BAN_ADMIN"), { statusCode: 400 });
+    }
+
+    const updateData: {
+      isBanned: boolean;
+      banReason?: string | null;
+      bannedAt?: Date | null;
+    } = {
+      isBanned: data.isBanned,
+    };
+
+    if (data.isBanned) {
+      updateData.banReason = data.reason || "Violation of community guidelines.";
+      updateData.bannedAt = new Date();
+    } else {
+      updateData.banReason = null;
+      updateData.bannedAt = null;
+    }
+
+    await prisma.user.update({
+      where: { id: targetUserId },
+      data: updateData,
+    });
+
+    return { ok: true, userId: targetUserId };
+  },
+
+  async changeUserRole(adminId: number, userId: string, body: unknown) {
+    const data = changeUserRoleBodySchema.parse(body);
+    const targetUserId = parseInt(userId, 10);
+
+    if (isNaN(targetUserId)) {
+      throw Object.assign(new Error("INVALID_USER_ID"), { statusCode: 400 });
+    }
+
+    // Cannot change own role
+    if (targetUserId === adminId) {
+      throw Object.assign(new Error("CANNOT_CHANGE_OWN_ROLE"), { statusCode: 400 });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, role: true },
+    });
+
+    if (!targetUser) {
+      throw Object.assign(new Error("USER_NOT_FOUND"), { statusCode: 404 });
+    }
+
+    await prisma.user.update({
+      where: { id: targetUserId },
+      data: { role: data.role as UserRole },
+    });
+
+    return { ok: true, userId: targetUserId };
   },
 };

@@ -11,4 +11,6 @@ export const env = {
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || "review-images",
   supabaseBroadcastChannel: process.env.SUPABASE_BROADCAST_CHANNEL || "travel-app",
+
+  firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "",
 };

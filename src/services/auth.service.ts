@@ -132,7 +132,12 @@ export const authService = {
     const data = loginSchema.parse(body);
     const user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user) throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
-    
+
+    // Check if user is banned
+    if (user.isBanned) {
+      throw Object.assign(new Error("USER_BANNED"), { statusCode: 403 });
+    }
+
     try {
       const ok = await bcrypt.compare(data.password, user.passwordHash);
       if (!ok) throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
@@ -143,7 +148,7 @@ export const authService = {
       }
       throw error;
     }
-    
+
     const token = this.signToken(user.id, user.email);
 
     return {

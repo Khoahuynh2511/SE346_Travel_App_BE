@@ -79,8 +79,49 @@ export const placesService = {
     const category = query.category
       ? (placeCategorySchema.parse(query.category) as PlaceCategory)
       : undefined;
+    const search = query.search;
+    const region = query.region;
+    const minRating = query.minRating ? parseFloat(query.minRating) : undefined;
+    const maxPrice = query.maxPrice ? parseFloat(query.maxPrice) : undefined;
+
     const where: Record<string, unknown> = { status: "APPROVED" };
+
     if (category) where.category = category;
+
+    // Text search on name, region, about (case-insensitive)
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { region: { contains: search, mode: "insensitive" } },
+        { about: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    // Region filter (case-insensitive contains)
+    if (region) {
+      if (where.OR) {
+        // If we already have OR from search, we need to combine properly
+        // In this case, add region as a separate condition with AND
+        where.AND = [
+          { OR: where.OR },
+          { region: { contains: region, mode: "insensitive" } },
+        ];
+        delete where.OR;
+      } else {
+        where.region = { contains: region, mode: "insensitive" };
+      }
+    }
+
+    // Rating filter (minimum rating)
+    if (minRating && !isNaN(minRating)) {
+      where.averageRating = { gte: minRating };
+    }
+
+    // Price filter (maximum price level)
+    if (maxPrice && !isNaN(maxPrice)) {
+      where.priceLevel = { lte: maxPrice };
+    }
+
     const [total, list] = await Promise.all([
       prisma.place.count({ where }),
       prisma.place.findMany({

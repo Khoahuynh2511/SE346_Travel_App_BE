@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../integrations/supabaseAdmin.js";
+import { logger } from "../utils/logger.js";
 
 const SUBSCRIBE_TIMEOUT_MS = 10_000;
 
@@ -37,7 +38,7 @@ export const realtimeService = {
               })
               .then((result) => {
                 if (result !== "ok" && process.env.NODE_ENV !== "production") {
-                  console.warn("realtime broadcast send status:", result);
+                  logger.warn({ result }, "realtime broadcast send status");
                 }
                 return channel.unsubscribe();
               })

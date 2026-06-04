@@ -6,6 +6,8 @@ import { jsonError, wrapAsync } from "../http/errors.js";
 import { meFavoritesRouter } from "./me-favorites.routes.js";
 import { meTripsRouter } from "./trips.routes.js";
 import { parsePagination } from "../http/pagination.js";
+import { z } from "zod";
+import { prisma } from "../database/client.js";
 
 export const usersRouter = Router();
 
@@ -55,3 +57,13 @@ usersRouter.get(
 
 usersRouter.use("/me/favorites", requireAuth, meFavoritesRouter);
 usersRouter.use("/me/trips", requireAuth, meTripsRouter);
+
+usersRouter.patch(
+  "/me/fcm-token",
+  requireAuth,
+  wrapAsync(async (req, res) => {
+    const { fcmToken } = z.object({ fcmToken: z.string().max(500) }).parse(req.body);
+    await prisma.user.update({ where: { id: req.user!.sub }, data: { fcmToken } });
+    res.json({ ok: true });
+  })
+);

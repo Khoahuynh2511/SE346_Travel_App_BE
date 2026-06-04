@@ -1,6 +1,8 @@
 import { NotificationType, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
+import { logger } from "../utils/logger.js";
+import { getFirebaseApp } from "../integrations/firebase.js";
 
 const notificationQuerySchema = z.object({
   tab: z.enum(["all", "unread"]).default("all"),
@@ -31,7 +33,7 @@ export const notificationService = {
       return null;
     }
 
-    return prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         type: params.type,
         actorId: params.actorId ?? null,
@@ -48,6 +50,45 @@ export const notificationService = {
       },
       include: { recipients: true },
     });
+
+    // Send push notifications
+    await this.sendPushNotification({
+      recipientUserIds,
+      title: params.title ?? "Notification",
+      body: params.body ?? "",
+      data: params.data ? params.data as Record<string, string> : undefined,
+    });
+
+    return notification;
+  },
+
+  async sendPushNotification(params: {
+    recipientUserIds: number[];
+    title: string;
+    body: string;
+    data?: Record<string, string>;
+  }) {
+    const app = getFirebaseApp();
+    if (!app) return; // Firebase not configured, skip push
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: params.recipientUserIds }, fcmToken: { not: null } },
+      select: { fcmToken: true },
+    });
+
+    const tokens = users.map((u) => u.fcmToken!).filter(Boolean);
+    if (!tokens.length) return;
+
+    try {
+      const response = await app.messaging().sendEachForMulticast({
+        notification: { title: params.title, body: params.body },
+        data: params.data || {},
+        tokens,
+      });
+      logger.info({ successCount: response.successCount, failureCount: response.failureCount }, "Push notifications sent");
+    } catch (error) {
+      logger.error({ error }, "Failed to send push notifications");
+    }
   },
 
   async getUserNotifications(userId: number, query: unknown) {

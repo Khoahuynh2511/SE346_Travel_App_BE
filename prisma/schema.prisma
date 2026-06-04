@@ -61,6 +61,10 @@ model User {
   username     String?      @unique
   location     String?
   avatarUrl    String?
+  fcmToken     String?
+  isBanned     Boolean      @default(false)
+  banReason    String?
+  bannedAt     DateTime?
   createdAt    DateTime     @default(now())
   reviews      Review[]
   reviewLikes  ReviewLike[]
