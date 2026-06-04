@@ -76,6 +76,15 @@ const tripWriteSchema = z
   .strict();
 
 const tripInclude = Prisma.validator<Prisma.TripInclude>()({
+  user: {
+    select: {
+      id: true,
+      email: true,
+      fullName: true,
+      username: true,
+      avatarUrl: true,
+    },
+  },
   currentHotelPlace: {
     select: {
       id: true,
@@ -303,7 +312,8 @@ export const tripsService = {
       throw Object.assign(new Error("HOTEL_PLACE_NOT_FOUND"), { statusCode: 404 });
     }
 
-    const normalizedMembers = dedupeMembers(input.members);
+    const ownerUserId = existingTrip?.userId ?? userId;
+    const normalizedMembers = dedupeMembers(input.members).filter((member) => member.userId !== ownerUserId);
     const memberUserIds = normalizedMembers
       .map((member) => member.userId)
       .filter((userId): userId is number => userId !== undefined);
@@ -672,7 +682,7 @@ function mapExistingActivityToInput(activity: TripActivityWithPlace): TripLocati
     imageUrl: activity.imageUrl ?? activity.place?.coverImageUrl ?? undefined,
     period: activity.period,
     scheduledTime: activity.scheduledTime ?? undefined,
-    estimatedCost: activity.estimatedCost,
+    estimatedCost: toNumberValue(activity.estimatedCost, 0),
     rating: activity.rating ?? activity.place?.averageRating ?? undefined,
     sortOrder: activity.sortOrder,
   };
@@ -836,19 +846,47 @@ async function assertCanDeleteTrip(userId: number, tripId: string) {
 }
 
 export function mapTrip(trip: TripWithDetails) {
-  const collaborators = trip.members.map((member) => ({
-    id: member.id,
-    userId: member.userId,
-    email: member.user?.email ?? null,
-    name: member.user?.fullName ?? member.user?.username ?? member.name ?? null,
-    avatarUrl: member.user?.avatarUrl ?? member.avatarUrl ?? null,
-    status: member.status,
-    isRegisteredUser: Boolean(member.userId),
-  }));
+  const owner = "user" in trip && trip.user
+    ? {
+        id: `owner-${trip.user.id}`,
+        userId: trip.user.id,
+        email: trip.user.email ?? null,
+        name: trip.user.fullName ?? trip.user.username ?? trip.user.email ?? "Owner",
+        avatarUrl: trip.user.avatarUrl ?? null,
+        status: activeMemberStatus,
+        role: "OWNER",
+        isOwner: true,
+        isRegisteredUser: true,
+      }
+    : {
+        id: `owner-${trip.userId}`,
+        userId: trip.userId,
+        email: null,
+        name: "Owner",
+        avatarUrl: null,
+        status: activeMemberStatus,
+        role: "OWNER",
+        isOwner: true,
+        isRegisteredUser: true,
+      };
+  const collaborators = trip.members
+    .filter((member) => member.userId !== trip.userId)
+    .map((member) => ({
+      id: member.id,
+      userId: member.userId,
+      email: member.user?.email ?? null,
+      name: member.user?.fullName ?? member.user?.username ?? member.name ?? null,
+      avatarUrl: member.user?.avatarUrl ?? member.avatarUrl ?? null,
+      status: member.status,
+      role: "MEMBER",
+      isOwner: false,
+      isRegisteredUser: Boolean(member.userId),
+    }));
+  const members = [owner, ...collaborators];
   const itineraryData = trip.days.map((day) => mapDay(day, trip.title));
   const persistedFields = getTripPersistedFields(trip);
-  const budget = persistedFields.budget ?? persistedFields.totalBudgetPerPerson ?? 0;
-  const totalBudgetPerPerson = persistedFields.totalBudgetPerPerson ?? budget;
+  const budget = toNumberValue(persistedFields.budget ?? persistedFields.totalBudgetPerPerson, 0);
+  const totalBudgetPerPerson = toNumberValue(persistedFields.totalBudgetPerPerson, budget);
 
   return {
     id: trip.id,
@@ -874,8 +912,8 @@ export function mapTrip(trip: TripWithDetails) {
     budget,
     totalBudgetPerPerson,
     currency: persistedFields.currency ?? "VND",
-    members: collaborators,
-    collaborators,
+    members,
+    collaborators: members,
     itineraryData,
     days: trip.days.map((day) => ({
       ...mapDay(day, trip.title),
@@ -906,13 +944,14 @@ function mapDay(day: TripDayWithActivities, tripTitle: string) {
     dayNumber: day.dayNumber,
     title: day.title ?? `Day ${day.dayNumber}: ${tripTitle}`,
     date: day.date,
-    estimatedBudget: day.estimatedBudget,
+    estimatedBudget: toNumberValue(day.estimatedBudget, 0),
     locations: day.activities.map(mapActivity),
   };
 }
 
 function mapActivity(activity: TripActivityWithPlace) {
   const image = activity.place?.coverImageUrl ?? activity.imageUrl ?? null;
+  const estimatedCost = toNumberValue(activity.estimatedCost, 0);
   return {
     id: activity.id,
     placeId: activity.placeId,
@@ -924,8 +963,8 @@ function mapActivity(activity: TripActivityWithPlace) {
     time: activity.scheduledTime ?? null,
     scheduledTime: activity.scheduledTime ?? null,
     period: activity.period,
-    cost: activity.estimatedCost,
-    estimatedCost: activity.estimatedCost,
+    cost: estimatedCost,
+    estimatedCost,
     rating: activity.rating ?? activity.place?.averageRating ?? null,
     sortOrder: activity.sortOrder,
     place: activity.place,
@@ -1026,4 +1065,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function optionalString(value: unknown) {
   return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+function toNumberValue(value: unknown, fallback = 0) {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
 }

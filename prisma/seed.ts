@@ -21,6 +21,11 @@ function withUtcTime(date: Date, hours: number, minutes = 0) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hours, minutes, 0));
 }
 
+function parseSeedDate(value: string, endOfDay = false) {
+  const [day, month, year] = value.split("/").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0));
+}
+
 function requireSupabaseConfig() {
   if (!env.supabaseUrl || !env.supabaseServiceRoleKey) {
     throw new Error("SUPABASE_STORAGE_NOT_CONFIGURED");
@@ -118,6 +123,13 @@ const USERS_DATA = [
   { email: "owner2@example.com",       fullName: "Second Owner Demo", username: "owner_two_demo",    location: "Đà Nẵng, Việt Nam",       avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face", role: "OWNER"    as const },
   { email: "admin@example.com",        fullName: "Admin Demo",        username: "admin_demo",        location: "Hà Nội, Việt Nam",        avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face", role: "ADMIN"    as const, password: "admin1234" },
 ];
+
+const REMOVED_USER_EMAILS = new Set([
+  "nam.bui@example.com",
+  "thu.hoang@example.com",
+]);
+
+const SEEDED_USERS_DATA = USERS_DATA.filter((user) => !REMOVED_USER_EMAILS.has(user.email));
 
 // ─── PLACES ───────────────────────────────────────────────────────────────────
 // All image IDs verified from Unsplash search results.
@@ -863,7 +875,20 @@ const PLACES_DATA = [
 const REMOVED_PLACE_NAMES = new Set([
   "Mũi Né - Đồi Cát Bay",
   "Hồ Tây & Đền Quán Thánh",
+  "Phở Thìn Lò Đúc",
+  "Bún Chả Hương Liên",
+  "Bánh Mì Phượng Hội An",
+  "Cơm Tấm Sườn Bì Chả Sài Gòn",
+  "Mì Quảng Đặc Sản Đà Nẵng",
+  "Hải Sản Tươi Sống Nha Trang",
+  "Nhà Hàng Ngon Hà Nội",
+  "Lẩu Cá Kèo Miền Tây",
   "Cà Phê Trứng Giảng Hà Nội",
+  "Lễ Hội Đèn Lồng Hội An",
+  "Lễ Hội Hoa Đà Lạt",
+  "Tết Nguyên Đán Hà Nội",
+  "Lễ Hội Pháo Hoa Quốc Tế Đà Nẵng",
+  "Carnival Đường Phố Đà Nẵng",
   "Lễ Hội Chọi Trâu Đồ Sơn",
   "Lễ Hội Diều Quốc Tế Vũng Tàu",
   "Lễ Hội Oóc Om Bóc - Đua Ghe Ngo",
@@ -1021,7 +1046,7 @@ async function main() {
   // ── Users ──────────────────────────────────────────────────────────────────
   console.log("👥 Creating users...");
   const seededUsers = await Promise.all(
-    USERS_DATA.map(async (u) => {
+    SEEDED_USERS_DATA.map(async (u) => {
       const rawPassword = (u as { password?: string }).password ?? "demo1234";
       const passwordHash = await bcrypt.hash(rawPassword, 10);
       if (!u.avatarUrl) return { ...u, passwordHash, avatarUrl: null };
@@ -1046,9 +1071,12 @@ async function main() {
       })
     )
   );
-  const ownerUser    = createdUsers[9];
-  const secondOwnerUser = createdUsers[10];
-  const travelerUsers = createdUsers.slice(0, 9);
+  const travelerUsers = createdUsers.filter((user) => user.role === "TRAVELER");
+  const ownerUser = createdUsers.find((user) => user.email === "owner@example.com");
+  const secondOwnerUser = createdUsers.find((user) => user.email === "owner2@example.com");
+  if (!ownerUser || !secondOwnerUser) {
+    throw new Error("Seed owner users were not created");
+  }
   const secondOwnerPlaceIndexes = new Set(
     Array.from({ length: 7 }, (_, offset) => SEEDED_PLACES_DATA.length - 7 + offset),
   );
@@ -1102,7 +1130,7 @@ async function main() {
       ? p.reviews.slice(0, 2)
       : p.reviews;
     reviewData.push(
-      ...seededReviews.map((rev, reviewIdx) => ({
+      ...seededReviews.filter((rev) => rev.userIdx < travelerUsers.length).map((rev, reviewIdx) => ({
         placeId: place.id,
         userId: travelerUsers[rev.userIdx].id,
         rating: rev.rating,
@@ -1203,6 +1231,8 @@ async function main() {
           placeId: createdPlaces[promotionPlaceIndexes[idx]],
           activeAt,
           ...promoTemplates[idx],
+          startDate: parseSeedDate(promoTemplates[idx].startDate),
+          endDate: parseSeedDate(promoTemplates[idx].endDate, true),
         },
       }),
     );
@@ -1210,7 +1240,7 @@ async function main() {
 
   const postActiveFavoriteSeeds = [
     { promotionIdx: 0, userIndexes: [1, 2, 3, 4] },
-    { promotionIdx: 7, userIndexes: [0, 5, 6, 7] },
+    { promotionIdx: 7, userIndexes: [0, 3, 5, 6] },
   ];
   let postActiveFavoriteCount = 0;
   for (const seed of postActiveFavoriteSeeds) {
@@ -1266,8 +1296,8 @@ async function main() {
   }
 
   const promotionReviewTimelines = [
-    { promotionIdx: 0, targetTotal: 10, addAfterActive: 8 },
-    { promotionIdx: 7, targetTotal: 16, addAfterActive: 14 },
+    { promotionIdx: 0, beforeActive: 2, targetTotal: 10, addAfterActive: 8 },
+    { promotionIdx: 7, beforeActive: 1, targetTotal: 15, addAfterActive: 14 },
   ];
   let postActiveReviewCount = 0;
   for (const timeline of promotionReviewTimelines) {
@@ -1301,10 +1331,10 @@ async function main() {
         },
       }),
     ]);
-    if (beforeActive !== 2 || totalReviews !== timeline.targetTotal || reviewImages !== 0) {
+    if (beforeActive !== timeline.beforeActive || totalReviews !== timeline.targetTotal || reviewImages !== 0) {
       throw new Error(
         `Promotion index ${timeline.promotionIdx} review seed mismatch: ` +
-        `before=${beforeActive}/2, total=${totalReviews}/${timeline.targetTotal}, ` +
+        `before=${beforeActive}/${timeline.beforeActive}, total=${totalReviews}/${timeline.targetTotal}, ` +
         `postActiveImages=${reviewImages}/0`,
       );
     }

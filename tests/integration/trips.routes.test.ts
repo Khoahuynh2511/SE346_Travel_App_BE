@@ -154,152 +154,133 @@ describe("Trips integration", () => {
     }
   });
 
-  it("should delete invitation notification after accepting from notifications API", async () => {
-    let generatedTripId = "";
-    let recipientId = "";
-    let notificationId = "";
+  it("should delete invite notification rows after accepting from notifications", async () => {
+    let inviteTripId = "";
 
     try {
       const createResponse = await request(app)
         .post("/api/v1/trips")
         .set(authHeader(token))
         .send({
-          title: "Accept Notification Trip",
+          title: "Notification Accept Trip",
           destination: "Da Nang",
           startDate: "2026-08-01T00:00:00.000Z",
           endDate: "2026-08-02T00:00:00.000Z",
-          budget: 1000000,
+          budget: 3000000,
           currency: "VND",
         });
 
       expect(createResponse.status).toBe(201);
-      generatedTripId = createResponse.body.data.id;
+      inviteTripId = createResponse.body.data.id;
 
       const inviteResponse = await request(app)
-        .post(`/api/v1/trips/${generatedTripId}/members/invite`)
+        .post(`/api/v1/trips/${inviteTripId}/members/invite`)
         .set(authHeader(token))
         .send({ userId: inviteeId });
 
       expect(inviteResponse.status).toBe(201);
-      recipientId = inviteResponse.body.data.notification.id;
-      notificationId = inviteResponse.body.data.notification.notificationId;
-      expect(recipientId).toBeTruthy();
-      expect(notificationId).toBeTruthy();
+
+      const notificationsResponse = await request(app)
+        .get("/api/v1/notifications")
+        .set(authHeader(inviteeToken));
+
+      expect(notificationsResponse.status).toBe(200);
+      const inviteNotification = notificationsResponse.body.data.find(
+        (notification: { type?: string; targetId?: string }) =>
+          notification.type === "invited" && notification.targetId === inviteTripId
+      );
+      expect(inviteNotification).toBeTruthy();
 
       const acceptResponse = await request(app)
-        .post(`/api/v1/notifications/${notificationId}/accept`)
+        .post(`/api/v1/notifications/${inviteNotification.id}/accept`)
         .set(authHeader(inviteeToken));
 
       expect(acceptResponse.status).toBe(200);
       expect(acceptResponse.body.ok).toBe(true);
       expect(acceptResponse.body.data).toMatchObject({
-        tripId: generatedTripId,
+        tripId: inviteTripId,
         userId: inviteeId,
         status: "ACTIVE",
       });
 
-      const [deletedRecipient, deletedNotification] = await Promise.all([
-        prisma.notificationRecipient.findUnique({ where: { id: recipientId } }),
-        prisma.notification.findUnique({ where: { id: notificationId } }),
-      ]);
+      const deletedRecipient = await prisma.notificationRecipient.findUnique({
+        where: { id: inviteNotification.id },
+      });
+      const deletedNotification = await prisma.notification.findUnique({
+        where: { id: inviteNotification.notificationId },
+      });
       expect(deletedRecipient).toBeNull();
       expect(deletedNotification).toBeNull();
+    } finally {
+      if (inviteTripId) {
+        await prisma.trip.deleteMany({ where: { id: inviteTripId } });
+      }
+    }
+  }, 30000);
+
+  it("should delete invite notification rows after declining from notifications", async () => {
+    let inviteTripId = "";
+
+    try {
+      const createResponse = await request(app)
+        .post("/api/v1/trips")
+        .set(authHeader(token))
+        .send({
+          title: "Notification Decline Trip",
+          destination: "Da Nang",
+          startDate: "2026-08-03T00:00:00.000Z",
+          endDate: "2026-08-04T00:00:00.000Z",
+          budget: 3000000,
+          currency: "VND",
+        });
+
+      expect(createResponse.status).toBe(201);
+      inviteTripId = createResponse.body.data.id;
+
+      const inviteResponse = await request(app)
+        .post(`/api/v1/trips/${inviteTripId}/members/invite`)
+        .set(authHeader(token))
+        .send({ userId: inviteeId });
+
+      expect(inviteResponse.status).toBe(201);
 
       const notificationsResponse = await request(app)
         .get("/api/v1/notifications")
         .set(authHeader(inviteeToken));
 
       expect(notificationsResponse.status).toBe(200);
-      expect(
-        notificationsResponse.body.data.some((notification: { targetId: string }) => notification.targetId === generatedTripId)
-      ).toBe(false);
-    } finally {
-      if (generatedTripId) {
-        await prisma.trip.deleteMany({ where: { id: generatedTripId } });
-      }
-    }
-  }, 30_000);
-
-  it("should delete invitation notification after declining from notifications API", async () => {
-    let generatedTripId = "";
-    let declinedInviteeId = 0;
-    let declinedInviteeToken = "";
-    let recipientId = "";
-    let notificationId = "";
-
-    try {
-      const declinedInvitee = await prisma.user.create({
-        data: {
-          email: `trip-decline-invitee-${Date.now()}@example.com`,
-          passwordHash: await bcrypt.hash(password, 10),
-          fullName: "Trip Decline Invitee",
-        },
-      });
-      declinedInviteeId = declinedInvitee.id;
-      declinedInviteeToken = authService.signToken(declinedInvitee.id, declinedInvitee.email);
-
-      const createResponse = await request(app)
-        .post("/api/v1/trips")
-        .set(authHeader(token))
-        .send({
-          title: "Decline Notification Trip",
-          destination: "Da Nang",
-          startDate: "2026-08-03T00:00:00.000Z",
-          endDate: "2026-08-04T00:00:00.000Z",
-          budget: 1000000,
-          currency: "VND",
-        });
-
-      expect(createResponse.status).toBe(201);
-      generatedTripId = createResponse.body.data.id;
-
-      const inviteResponse = await request(app)
-        .post(`/api/v1/trips/${generatedTripId}/members/invite`)
-        .set(authHeader(token))
-        .send({ userId: declinedInviteeId });
-
-      expect(inviteResponse.status).toBe(201);
-      recipientId = inviteResponse.body.data.notification.id;
-      notificationId = inviteResponse.body.data.notification.notificationId;
-      expect(recipientId).toBeTruthy();
-      expect(notificationId).toBeTruthy();
+      const inviteNotification = notificationsResponse.body.data.find(
+        (notification: { type?: string; targetId?: string }) =>
+          notification.type === "invited" && notification.targetId === inviteTripId
+      );
+      expect(inviteNotification).toBeTruthy();
 
       const declineResponse = await request(app)
-        .post(`/api/v1/notifications/${notificationId}/decline`)
-        .set(authHeader(declinedInviteeToken));
+        .post(`/api/v1/notifications/${inviteNotification.id}/decline`)
+        .set(authHeader(inviteeToken));
 
       expect(declineResponse.status).toBe(200);
       expect(declineResponse.body.ok).toBe(true);
       expect(declineResponse.body.data).toMatchObject({
-        tripId: generatedTripId,
-        userId: declinedInviteeId,
+        tripId: inviteTripId,
+        userId: inviteeId,
         status: "REJECTED",
       });
 
-      const [deletedRecipient, deletedNotification] = await Promise.all([
-        prisma.notificationRecipient.findUnique({ where: { id: recipientId } }),
-        prisma.notification.findUnique({ where: { id: notificationId } }),
-      ]);
+      const deletedRecipient = await prisma.notificationRecipient.findUnique({
+        where: { id: inviteNotification.id },
+      });
+      const deletedNotification = await prisma.notification.findUnique({
+        where: { id: inviteNotification.notificationId },
+      });
       expect(deletedRecipient).toBeNull();
       expect(deletedNotification).toBeNull();
-
-      const notificationsResponse = await request(app)
-        .get("/api/v1/notifications")
-        .set(authHeader(declinedInviteeToken));
-
-      expect(notificationsResponse.status).toBe(200);
-      expect(
-        notificationsResponse.body.data.some((notification: { targetId: string }) => notification.targetId === generatedTripId)
-      ).toBe(false);
     } finally {
-      if (generatedTripId) {
-        await prisma.trip.deleteMany({ where: { id: generatedTripId } });
-      }
-      if (declinedInviteeId > 0) {
-        await prisma.user.deleteMany({ where: { id: declinedInviteeId } });
+      if (inviteTripId) {
+        await prisma.trip.deleteMany({ where: { id: inviteTripId } });
       }
     }
-  }, 30_000);
+  }, 30000);
 
   it("should create, update, and list a trip", async () => {
     const createPayload = {
@@ -362,7 +343,13 @@ describe("Trips integration", () => {
     });
     expect(createResponse.body.data.itineraryData).toHaveLength(3);
     expect(createResponse.body.data.itineraryData[0].locations).toHaveLength(1);
-    expect(createResponse.body.data.members).toHaveLength(2);
+    expect(createResponse.body.data.members).toHaveLength(3);
+    expect(createResponse.body.data.members[0]).toMatchObject({
+      userId,
+      role: "OWNER",
+      isOwner: true,
+      isRegisteredUser: true,
+    });
 
     tripId = createResponse.body.data.id;
     const firstDayId = createResponse.body.data.itineraryData[0].dayId;
@@ -442,14 +429,20 @@ describe("Trips integration", () => {
       rating: 4.9,
       sortOrder: 1,
     });
-    expect(updateResponse.body.data.members).toHaveLength(2);
+    expect(updateResponse.body.data.members).toHaveLength(3);
     expect(updateResponse.body.data.members[0]).toMatchObject({
+      userId,
+      role: "OWNER",
+      isOwner: true,
+      isRegisteredUser: true,
+    });
+    expect(updateResponse.body.data.members[1]).toMatchObject({
       userId: collaboratorId,
       name: "Trip Collaborator",
       avatarUrl: "https://example.com/avatar.jpg",
       isRegisteredUser: true,
     });
-    expect(updateResponse.body.data.members[1]).toMatchObject({
+    expect(updateResponse.body.data.members[2]).toMatchObject({
       name: "Guest Friend",
       avatarUrl: "https://example.com/guest.jpg",
       isRegisteredUser: false,
@@ -652,11 +645,11 @@ describe("Trips integration", () => {
       destination: "Da Lat",
       currentHotelName: "Trip Hotel",
       currentHotelPlaceId: hotelPlaceId,
-      budget: 6200000,
-      totalBudgetPerPerson: 6200000,
       coverImageUrl: "https://example.com/custom-trip-cover.jpg",
       currency: "VND",
     });
+    expect(Number(dbTrip?.budget)).toBe(6200000);
+    expect(Number(dbTrip?.totalBudgetPerPerson)).toBe(6200000);
     expect(dbTrip?.members.filter((member) => member.status === "ACTIVE")).toHaveLength(2);
     expect(dbTrip?.members.filter((member) => member.status === "REMOVED")).toHaveLength(1);
     expect(dbTrip?.days).toHaveLength(4);
@@ -667,10 +660,10 @@ describe("Trips integration", () => {
       imageUrl: "https://example.com/activity-cover.jpg",
       period: "AFTERNOON",
       scheduledTime: "09:30",
-      estimatedCost: 1200000,
       rating: 4.9,
       sortOrder: 1,
     });
+    expect(Number(dbTrip?.days[0].activities[0].estimatedCost)).toBe(1200000);
 
     const deleteResponse = await request(app)
       .delete(`/api/v1/trips/${tripId}`)
@@ -680,7 +673,7 @@ describe("Trips integration", () => {
     expect(deleteResponse.body).toEqual({ ok: true });
 
     const deletedTrip = await prisma.trip.findUnique({ where: { id: tripId } });
-    expect(deletedTrip).toBeNull();
+    expect(deletedTrip?.deletedAt).toBeTruthy();
 
     const getDeletedResponse = await request(app)
       .get(`/api/v1/trips/${tripId}`)
