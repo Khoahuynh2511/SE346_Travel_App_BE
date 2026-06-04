@@ -23,6 +23,7 @@ function toListDto(p: {
   category: PlaceCategory;
   priceLevel: number | null;
   images: { url: string }[];
+  promotions?: { id: string }[];
 }) {
   return {
     Id: p.id,
@@ -36,6 +37,7 @@ function toListDto(p: {
     priceLevel: p.priceLevel,
     image: p.coverImageUrl,
     images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
+    hasActivePromotion: Array.isArray(p.promotions) && p.promotions.length > 0,
   };
 }
 
@@ -128,7 +130,14 @@ export const placesService = {
       prisma.place.findMany({
         where,
         orderBy: { ratingCount: "desc" },
-        include: { images: { orderBy: { createdAt: "asc" } } },
+        include: {
+          images: { orderBy: { createdAt: "asc" } },
+          promotions: {
+            where: { isActive: true, ...notDeleted },
+            select: { id: true },
+            take: 1,
+          },
+        },
         skip: paging.offset,
         take: paging.limit,
       }),
