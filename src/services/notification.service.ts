@@ -553,7 +553,13 @@ async function listPendingInviteNotificationFallback(userId: number, limit: numb
 
 async function assertUserRecipient(userId: number, recipientId: string) {
   const recipient = await prisma.notificationRecipient.findFirst({
-    where: { id: recipientId, userId },
+    where: {
+      userId,
+      OR: [
+        { id: recipientId },
+        { notificationId: recipientId },
+      ],
+    },
     include: { notification: true },
   });
   if (!recipient) {

@@ -187,7 +187,7 @@ describe("Trips integration", () => {
       expect(notificationId).toBeTruthy();
 
       const acceptResponse = await request(app)
-        .post(`/api/v1/notifications/${recipientId}/accept`)
+        .post(`/api/v1/notifications/${notificationId}/accept`)
         .set(authHeader(inviteeToken));
 
       expect(acceptResponse.status).toBe(200);
@@ -265,7 +265,7 @@ describe("Trips integration", () => {
       expect(notificationId).toBeTruthy();
 
       const declineResponse = await request(app)
-        .post(`/api/v1/notifications/${recipientId}/decline`)
+        .post(`/api/v1/notifications/${notificationId}/decline`)
         .set(authHeader(declinedInviteeToken));
 
       expect(declineResponse.status).toBe(200);
