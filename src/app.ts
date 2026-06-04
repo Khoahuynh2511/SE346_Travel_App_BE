@@ -14,6 +14,8 @@ import { tripsRouter } from "./routes/trips.routes.js";
 import { tripDiaryRouter } from "./routes/tripDiary.routes.js";
 import { meRouter } from "./routes/me.routes.js";
 import { notificationRouter } from "./routes/notification.routes.js";
+import { itineraryOptimizerRouter } from "./routes/itineraryOptimizer.routes.js";
+import { recommendationRouter } from "./routes/recommendation.routes.js";
 import { supabaseConfigured } from "./integrations/supabaseAdmin.js";
 import { httpErrorMiddleware } from "./http/errors.js";
 import type { NextFunction, Request, Response } from "express";
@@ -50,6 +52,8 @@ api.use("/trips", tripsRouter);
 api.use("/me", meRouter);
 api.use("/notifications", notificationRouter);
 api.use("/trip-diaries", tripDiaryRouter);
+api.use("/itinerary", itineraryOptimizerRouter);
+api.use("/recommendations", recommendationRouter);
 app.use("/api/v1", api);
 
 app.get("/health", (_req, res) =>

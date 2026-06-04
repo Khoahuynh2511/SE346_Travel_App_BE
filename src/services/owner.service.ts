@@ -1,4 +1,4 @@
-import { PlaceCategory } from "@prisma/client";
+import { PlaceCategory, PlaceStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../database/client.js";
 import { notificationService } from "./notification.service.js";
@@ -95,6 +95,8 @@ function toOwnerPlaceDto(p: {
   averageRating: number;
   featureLabel: string;
   coverImageUrl: string;
+  status: PlaceStatus;
+  rejectionReason: string | null;
   images: { url: string }[];
 }) {
   return {
@@ -107,6 +109,8 @@ function toOwnerPlaceDto(p: {
     category: p.category,
     Category: p.category,
     Features: p.featureLabel,
+    Status: p.status,
+    RejectionReason: p.rejectionReason,
   };
 }
 
@@ -122,6 +126,9 @@ function toOwnerPlaceDetailDto(p: {
   priceLevel: number | null;
   latitude: number | null;
   longitude: number | null;
+  status: PlaceStatus;
+  rejectionReason: string | null;
+  reviewedAt: Date | null;
   images: { url: string }[];
   promotions: Parameters<typeof toPromotionDto>[0][];
 }) {
@@ -133,6 +140,9 @@ function toOwnerPlaceDetailDto(p: {
     latitude: p.latitude,
     longitude: p.longitude,
     promotions: p.promotions.map(toPromotionDto),
+    Status: p.status,
+    RejectionReason: p.rejectionReason,
+    ReviewedAt: p.reviewedAt?.toISOString() ?? null,
   };
 }
 
@@ -417,6 +427,7 @@ export const ownerService = {
         priceLevel: data.priceLevel ?? null,
         latitude: data.latitude ?? null,
         longitude: data.longitude ?? null,
+        status: "PENDING",
       },
     });
     const imageUrls = uniqueUrls(data.imageUrls ?? []).filter((url) => url !== data.coverImageUrl);
@@ -437,8 +448,12 @@ export const ownerService = {
   },
 
   async updatePlace(ownerId: number, placeId: string, body: unknown) {
-    await assertOwnedPlace(ownerId, placeId);
+    const existing = await assertOwnedPlace(ownerId, placeId);
     const data = updatePlaceSchema.parse(body);
+
+    // If the place was REJECTED, editing resubmits it for review
+    const resubmit = existing.status === "REJECTED";
+
     const place = await prisma.place.update({
       where: { id: placeId },
       data: {
@@ -451,6 +466,9 @@ export const ownerService = {
         ...(data.priceLevel !== undefined ? { priceLevel: data.priceLevel } : {}),
         ...(data.latitude !== undefined ? { latitude: data.latitude } : {}),
         ...(data.longitude !== undefined ? { longitude: data.longitude } : {}),
+        ...(resubmit
+          ? { status: "PENDING", rejectionReason: null, reviewedAt: null, reviewedBy: null }
+          : {}),
       },
     });
     if (data.imageUrls !== undefined) {
