@@ -991,6 +991,7 @@ const SEEDED_PLACES_DATA = [
   ...PLACES_DATA.filter((place) => !REMOVED_PLACE_NAMES.has(place.name)),
   ...ADDED_PLACES_DATA,
 ];
+const PENDING_SEED_PLACE_COUNT = 4;
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
@@ -1058,6 +1059,10 @@ async function main() {
 
   for (let i = 0; i < SEEDED_PLACES_DATA.length; i++) {
     const p = SEEDED_PLACES_DATA[i];
+    const status =
+      i >= SEEDED_PLACES_DATA.length - PENDING_SEED_PLACE_COUNT
+        ? "PENDING"
+        : "APPROVED";
     const slug = p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 30);
     console.log(`🏝️  [${i + 1}/${SEEDED_PLACES_DATA.length}] Seeding: ${p.name}`);
 
@@ -1077,6 +1082,7 @@ async function main() {
         priceLevel: p.priceLevel,
         latitude: p.latitude ?? null, longitude: p.longitude ?? null,
         about: p.about,
+        status,
       },
     });
     createdPlaces.push(place.id);

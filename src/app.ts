@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
-import pinoHttp from "pino-http";
+import { pinoHttp } from "pino-http";
 import { loadOpenApiDocument } from "./openapi/loadOpenApiDocument.js";
 import { logger } from "./utils/logger.js";
 import { authRouter } from "./routes/auth.routes.js";
