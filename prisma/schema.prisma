@@ -1,3 +1,6 @@
+// NOTE: Data validation (rating 1-5, email format, content length) is enforced
+// at the application level via Zod schemas in src/routes/*.ts
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -53,62 +56,68 @@ enum NotificationType {
 }
 
 model User {
-  id           Int          @id @default(autoincrement())
-  email        String       @unique
+  id           Int              @id @default(autoincrement())
+  email        String           @unique
   passwordHash String
-  role         UserRole     @default(TRAVELER)
+  role         UserRole         @default(TRAVELER)
   fullName     String?
-  username     String?      @unique
+  username     String?          @unique
   location     String?
   avatarUrl    String?
   fcmToken     String?
-  isBanned     Boolean      @default(false)
+  isBanned     Boolean          @default(false)
   banReason    String?
   bannedAt     DateTime?
-  createdAt    DateTime     @default(now())
+  createdAt    DateTime         @default(now())
   reviews      Review[]
   reviewLikes  ReviewLike[]
   favorites    Favorite[]
   ownedPlaces  Place[]          @relation("PlaceOwner")
   trips        Trip[]
   tripMembers  TripMember[]
-  tripInvites  TripMember[]    @relation("TripMemberInviter")
+  tripInvites  TripMember[]     @relation("TripMemberInviter")
   diaryEntries TripDiaryEntry[]
 
-  reviewedPlaces    Place[]          @relation("PlaceReviewer")
-  actedNotifications Notification[] @relation("NotificationActor")
+  reviewedPlaces         Place[]                 @relation("PlaceReviewer")
+  actedNotifications     Notification[]          @relation("NotificationActor")
   notificationRecipients NotificationRecipient[]
-  chatMessages ChatMessage[]
+  chatMessages           ChatMessage[]
+
+  @@index([role])
 }
 
 model Place {
-  id             String         @id @default(cuid())
-  ownerId        Int?
-  name           String
-  region         String
-  category       PlaceCategory
-  coverImageUrl  String
-  featureLabel   String
-  averageRating  Float          @default(0)
-  ratingCount    Int            @default(0)
-  about          String         @default("")
-  priceLevel     Float?
-  latitude       Float?
-  longitude      Float?
-  estimatedVisitDuration Int?            // minutes, e.g. 120 = 2 hours
-  recommendedTimeOfDay   String?         // "MORNING", "AFTERNOON", "EVENING", or null = ANY
+  id                     String         @id @default(cuid())
+  ownerId                Int?
+  name                   String
+  region                 String
+  category               PlaceCategory
+  coverImageUrl          String
+  featureLabel           String
+  averageRating          Float          @default(0)
+  ratingCount            Int            @default(0)
+  about                  String         @default("")
+  priceLevel             Decimal?       @db.Decimal(10, 2)
+  latitude               Float?
+  longitude              Float?
+  estimatedVisitDuration Int? // minutes, e.g. 120 = 2 hours
+  recommendedTimeOfDay   String? // "MORNING", "AFTERNOON", "EVENING", or null = ANY
   status                 PlaceStatus    @default(PENDING)
   rejectionReason        String?
   reviewedAt             DateTime?
   reviewedBy             Int?
-  owner          User?          @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  reviewedByUser User?          @relation("PlaceReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
-  reviews        Review[]
-  favorites      Favorite[]
-  promotions     Promotion[]
-  images         PlaceImage[]
-  hotelTrips     Trip[]         @relation("TripCurrentHotel")
-  tripActivities TripActivity[]
+  owner                  User?          @relation("PlaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reviewedByUser         User?          @relation("PlaceReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviews                Review[]
+  favorites              Favorite[]
+  promotions             Promotion[]
+  images                 PlaceImage[]
+  hotelTrips             Trip[]         @relation("TripCurrentHotel")
+  tripActivities         TripActivity[]
+
+  @@index([category])
+  @@index([status])
+  @@index([region])
 }
 
 model PlaceImage {
@@ -120,19 +129,21 @@ model PlaceImage {
 }
 
 model Promotion {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   placeId      String
   title        String
-  isActive     Boolean  @default(true)
+  isActive     Boolean   @default(true)
   startDate    String
   endDate      String
   days         String[]
-  startTime    String   @default("")
-  endTime      String   @default("")
-  specificTime Boolean  @default(false)
+  startTime    String    @default("")
+  endTime      String    @default("")
+  specificTime Boolean   @default(false)
   activeAt     DateTime?
-  createdAt    DateTime @default(now())
-  place        Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  place        Place     @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@index([isActive])
 }
 
 model Review {
@@ -146,6 +157,9 @@ model Review {
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   images    ReviewImage[]
   likes     ReviewLike[]
+
+  @@index([rating])
+  @@index([placeId])
 }
 
 model ReviewImage {
@@ -169,15 +183,15 @@ model Favorite {
   userId  Int
   placeId String
   saveAt  DateTime @default(now())
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  place   Place  @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place   Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@id([userId, placeId])
   @@index([saveAt])
 }
 
 model Trip {
-  id                   String       @id @default(cuid())
+  id                   String           @id @default(cuid())
   userId               Int
   title                String
   destination          String?
@@ -185,19 +199,20 @@ model Trip {
   currentHotelPlaceId  String?
   startDate            DateTime
   endDate              DateTime
-  budget               Float        @default(0)
-  totalBudgetPerPerson Float        @default(0)
+  budget               Decimal          @default(0) @db.Decimal(12, 2)
+  totalBudgetPerPerson Decimal          @default(0) @db.Decimal(12, 2)
   coverImageUrl        String?
-  currency             String       @default("VND")
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentHotelPlace    Place?       @relation("TripCurrentHotel", fields: [currentHotelPlaceId], references: [id], onDelete: SetNull)
+  currency             String           @default("VND")
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentHotelPlace    Place?           @relation("TripCurrentHotel", fields: [currentHotelPlaceId], references: [id], onDelete: SetNull)
   members              TripMember[]
   days                 TripDay[]
   diaryEntries         TripDiaryEntry[]
 
   @@index([userId])
+  @@index([startDate, endDate])
   @@index([currentHotelPlaceId])
 }
 
@@ -220,6 +235,7 @@ model TripMember {
   invitedBy        User?            @relation("TripMemberInviter", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@unique([tripId, userId])
+  @@index([tripId, status])
   @@index([tripId])
   @@index([userId])
   @@index([invitedById])
@@ -235,7 +251,7 @@ model Notification {
   body       String?
   data       Json?
   createdAt  DateTime                @default(now())
-  actor      User?                    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actor      User?                   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
   recipients NotificationRecipient[]
 
   @@index([type])
@@ -264,7 +280,7 @@ model TripDay {
   dayNumber       Int
   title           String?
   date            DateTime
-  estimatedBudget Float          @default(0)
+  estimatedBudget Decimal        @default(0) @db.Decimal(12, 2)
   isExpanded      Boolean        @default(true)
   trip            Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
   activities      TripActivity[]
@@ -282,7 +298,7 @@ model TripActivity {
   imageUrl      String?
   period        TripActivityPeriod
   scheduledTime String?
-  estimatedCost Float              @default(0)
+  estimatedCost Decimal            @default(0) @db.Decimal(12, 2)
   rating        Float?
   sortOrder     Int                @default(0)
   createdAt     DateTime           @default(now())
@@ -326,12 +342,10 @@ model TripDiaryImage {
 model ChatMessage {
   id        Int      @id @default(autoincrement())
   userId    Int
-  role      String   // "user" or "assistant"
+  role      String // "user" or "assistant"
   content   String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
-
-

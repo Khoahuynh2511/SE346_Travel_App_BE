@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import pinoHttp from "pino-http";
 import { loadOpenApiDocument } from "./openapi/loadOpenApiDocument.js";
@@ -26,9 +27,21 @@ import { ZodError } from "zod";
 import { Router } from "express";
 
 const app = express();
-app.use(cors());
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({
+  origin: [
+    'http://localhost:8081',
+    'http://localhost:19000',
+    'http://localhost:19001',
+    'http://localhost:19002',
+    'http://192.168.123.10:8081',
+    'exp://localhost:8081',
+    'exp://192.168.123.10:8081',
+  ],
+  credentials: true,
+}));
 app.use(pinoHttp({ logger }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 const openApiDoc = loadOpenApiDocument();
 

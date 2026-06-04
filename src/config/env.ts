@@ -13,4 +13,5 @@ export const env = {
   supabaseBroadcastChannel: process.env.SUPABASE_BROADCAST_CHANNEL || "travel-app",
 
   firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "",
+  groqApiKey: process.env.GROQ_API_KEY || "",
 };

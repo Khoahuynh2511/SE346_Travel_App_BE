@@ -9,7 +9,7 @@ import { toAuthUserDto } from "./userDto.js";
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(8).regex(/[A-Z]/, 'Must contain uppercase').regex(/[a-z]/, 'Must contain lowercase').regex(/[0-9]/, 'Must contain number'),
   fullName: z.string().min(1).optional(),
   role: z.enum(["TRAVELER", "OWNER"]).optional(),
 });
@@ -131,7 +131,10 @@ export const authService = {
   async login(body: unknown) {
     const data = loginSchema.parse(body);
     const user = await prisma.user.findUnique({ where: { email: data.email } });
-    if (!user) throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
+    if (!user) {
+      await bcrypt.compare("dummy", "$2a$10$dummydummydummydummydummydummydummydummydummydummydummy"); // constant-time dummy
+      throw Object.assign(new Error("INVALID_CREDENTIALS"), { statusCode: 401 });
+    }
 
     // Check if user is banned
     if (user.isBanned) {
@@ -164,10 +167,7 @@ export const authService = {
     if (!user) {
       return { message: "If the email exists, reset instructions will be sent." };
     }
-    return {
-      message: "If the email exists, reset instructions will be sent.",
-      previewToken: signPasswordResetToken(user.id, user.email),
-    };
+    return { message: "If the email exists, reset instructions will be sent." };
   },
 
   async resetPassword(body: unknown) {
@@ -194,6 +194,6 @@ export const authService = {
 
   signToken(userId: number, email: string): string {
     const payload: AppJwtPayload = { sub: userId, email };
-    return jwt.sign(payload, env.jwtSecret, { expiresIn: "7d" });
+    return jwt.sign(payload, env.jwtSecret, { expiresIn: "24h" });
   },
 };

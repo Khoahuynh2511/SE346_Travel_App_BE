@@ -1,8 +1,9 @@
 import Groq from "groq-sdk";
 import { prisma } from "../database/client.js";
+import { env } from "../config/env.js";
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: env.groqApiKey,
 });
 
 export const groqService = {
