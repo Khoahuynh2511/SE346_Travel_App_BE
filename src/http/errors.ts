@@ -35,8 +35,11 @@ export function httpErrorMiddleware(
     err instanceof Error ? err.message : typeof err === "string" ? err : "INTERNAL";
 
   if (status === 500) {
-    const { logger } = await import("../utils/logger.js");
-    logger.error({ err }, "[Fatal Error]");
+    import("../utils/logger.js").then(({ logger }) => {
+      logger.error({ err }, "[Fatal Error]");
+    }).catch(() => {
+      console.error("[Fatal Error]", err);
+    });
   }
 
   if (!res.headersSent) {
