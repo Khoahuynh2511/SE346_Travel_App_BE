@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomBytes } from "crypto";
 import { z } from "zod";
+import { OAuth2Client } from "google-auth-library";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../integrations/supabaseAdmin.js";
 import type { AppJwtPayload } from "../middleware/auth.js";
@@ -26,6 +28,10 @@ const forgotPasswordSchema = z.object({
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
   newPassword: z.string().min(8),
+});
+
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1),
 });
 
 type PasswordResetJwtPayload = {
@@ -114,8 +120,9 @@ export const authService = {
           role: true,
         },
       });
-      const token = this.signToken(user.id, user.email);
-      return { accessToken: token, userId: user.id, user: toAuthUserDto(user) };
+      const accessToken = this.signToken(user.id, user.email);
+      const refreshToken = await this.generateRefreshToken(user.id);
+      return { accessToken, refreshToken, userId: user.id, user: toAuthUserDto(user) };
     } catch (error) {
       if (supabaseUser?.id) {
         await deleteSupabaseAuthUser(supabaseUser.id);
@@ -152,10 +159,12 @@ export const authService = {
       throw error;
     }
 
-    const token = this.signToken(user.id, user.email);
+    const accessToken = this.signToken(user.id, user.email);
+    const refreshToken = await this.generateRefreshToken(user.id);
 
     return {
-      accessToken: token,
+      accessToken,
+      refreshToken,
       userId: user.id,
       user: toAuthUserDto(user),
     };
@@ -186,14 +195,144 @@ export const authService = {
     return { message: "Password updated.", userId: user.id };
   },
 
-  oauthNotImplemented(provider: string) {
-    throw Object.assign(new Error(`OAUTH_${provider.toUpperCase()}_NOT_CONFIGURED`), {
-      statusCode: 501,
+  async oauthGoogle(idToken: string, role?: string) {
+    if (!env.googleClientId) {
+      throw Object.assign(new Error("OAUTH_GOOGLE_NOT_CONFIGURED"), { statusCode: 501 });
+    }
+
+    const client = new OAuth2Client(env.googleClientId);
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+        idToken,
+        audience: env.googleClientId,
+      });
+    } catch (error) {
+      throw Object.assign(new Error("INVALID_GOOGLE_TOKEN"), { statusCode: 401 });
+    }
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      throw Object.assign(new Error("INVALID_GOOGLE_TOKEN"), { statusCode: 401 });
+    }
+
+    const { email, name, picture } = payload;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+
+    if (existingUser) {
+      // Check if user is banned
+      if (existingUser.isBanned) {
+        throw Object.assign(new Error("USER_BANNED"), { statusCode: 403 });
+      }
+
+      // Log in existing user
+      const accessToken = this.signToken(existingUser.id, existingUser.email);
+      const refreshToken = await this.generateRefreshToken(existingUser.id);
+
+      return {
+        accessToken,
+        refreshToken,
+        userId: existingUser.id,
+        user: toAuthUserDto(existingUser),
+        isNewUser: false,
+      };
+    }
+
+    // Create new user from Google OAuth
+    const randomPassword = randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(randomPassword, 10);
+
+    const userRole = role === "OWNER" ? "OWNER" : "TRAVELER";
+    const fullName = name || email.split('@')[0];
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        role: userRole,
+        fullName,
+        avatarUrl: picture || null,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        username: true,
+        avatarUrl: true,
+        location: true,
+        role: true,
+      },
     });
+
+    const accessToken = this.signToken(user.id, user.email);
+    const refreshToken = await this.generateRefreshToken(user.id);
+
+    return {
+      accessToken,
+      refreshToken,
+      userId: user.id,
+      user: toAuthUserDto(user),
+      isNewUser: true,
+    };
   },
 
   signToken(userId: number, email: string): string {
     const payload: AppJwtPayload = { sub: userId, email };
-    return jwt.sign(payload, env.jwtSecret, { expiresIn: "24h" });
+    return jwt.sign(payload, env.jwtSecret, { expiresIn: "15m" });
+  },
+
+  async generateRefreshToken(userId: number): Promise<string> {
+    const token = randomBytes(64).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await prisma.refreshToken.create({
+      data: {
+        token,
+        userId,
+        expiresAt,
+      },
+    });
+
+    return token;
+  },
+
+  async refreshAccessToken(refreshToken: string) {
+    const data = refreshSchema.parse({ refreshToken });
+
+    const existingToken = await prisma.refreshToken.findUnique({
+      where: { token: data.refreshToken },
+      include: { user: true },
+    });
+
+    if (!existingToken) {
+      throw Object.assign(new Error("INVALID_REFRESH_TOKEN"), { statusCode: 401 });
+    }
+
+    if (existingToken.expiresAt < new Date()) {
+      await prisma.refreshToken.delete({ where: { token: data.refreshToken } });
+      throw Object.assign(new Error("REFRESH_TOKEN_EXPIRED"), { statusCode: 401 });
+    }
+
+    // Delete old refresh token (token rotation)
+    await prisma.refreshToken.delete({ where: { token: data.refreshToken } });
+
+    // Generate new tokens
+    const newAccessToken = this.signToken(existingToken.user.id, existingToken.user.email);
+    const newRefreshToken = await this.generateRefreshToken(existingToken.user.id);
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  },
+
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    const data = refreshSchema.parse({ refreshToken });
+    await prisma.refreshToken.delete({ where: { token: data.refreshToken } }).catch(() => {
+      // Ignore if token doesn't exist
+    });
   },
 };

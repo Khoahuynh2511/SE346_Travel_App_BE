@@ -8,6 +8,17 @@ import { wrapAsync } from "../http/errors.js";
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    // Allowed extensions
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    const fileExtension = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf("."));
+
+    if (allowedExtensions.includes(fileExtension)) {
+      cb(null, true);
+    } else {
+      cb(new Error("INVALID_FILE_EXTENSION"));
+    }
+  },
 });
 
 function getUploadedFiles(req: Express.Request) {
@@ -27,6 +38,10 @@ uploadsRouter.post(
           return;
         }
         res.status(400).json({ ok: false, error: err.code });
+        return;
+      }
+      if (err instanceof Error && err.message === "INVALID_FILE_EXTENSION") {
+        res.status(415).json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" });
         return;
       }
       next(err as Error | undefined);
@@ -71,6 +86,10 @@ uploadsRouter.post(
           return;
         }
         res.status(400).json({ ok: false, error: err.code });
+        return;
+      }
+      if (err instanceof Error && err.message === "INVALID_FILE_EXTENSION") {
+        res.status(415).json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" });
         return;
       }
       next(err as Error | undefined);
@@ -121,6 +140,10 @@ uploadsRouter.post(
         res.status(400).json({ ok: false, error: err.code });
         return;
       }
+      if (err instanceof Error && err.message === "INVALID_FILE_EXTENSION") {
+        res.status(415).json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" });
+        return;
+      }
       next(err as Error | undefined);
     });
   },
@@ -167,6 +190,10 @@ uploadsRouter.post(
           return;
         }
         res.status(400).json({ ok: false, error: err.code });
+        return;
+      }
+      if (err instanceof Error && err.message === "INVALID_FILE_EXTENSION") {
+        res.status(415).json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" });
         return;
       }
       next(err as Error | undefined);
@@ -216,6 +243,10 @@ uploadsRouter.post(
           return;
         }
         res.status(400).json({ ok: false, error: err.code });
+        return;
+      }
+      if (err instanceof Error && err.message === "INVALID_FILE_EXTENSION") {
+        res.status(415).json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" });
         return;
       }
       next(err as Error | undefined);

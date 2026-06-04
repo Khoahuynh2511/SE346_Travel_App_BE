@@ -14,4 +14,5 @@ export const env = {
 
   firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "",
   groqApiKey: process.env.GROQ_API_KEY || "",
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
 };

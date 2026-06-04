@@ -56,27 +56,28 @@ enum NotificationType {
 }
 
 model User {
-  id           Int              @id @default(autoincrement())
-  email        String           @unique
-  passwordHash String
-  role         UserRole         @default(TRAVELER)
-  fullName     String?
-  username     String?          @unique
-  location     String?
-  avatarUrl    String?
-  fcmToken     String?
-  isBanned     Boolean          @default(false)
-  banReason    String?
-  bannedAt     DateTime?
-  createdAt    DateTime         @default(now())
-  reviews      Review[]
-  reviewLikes  ReviewLike[]
-  favorites    Favorite[]
-  ownedPlaces  Place[]          @relation("PlaceOwner")
-  trips        Trip[]
-  tripMembers  TripMember[]
-  tripInvites  TripMember[]     @relation("TripMemberInviter")
-  diaryEntries TripDiaryEntry[]
+  id            Int              @id @default(autoincrement())
+  email         String           @unique
+  passwordHash  String
+  role          UserRole         @default(TRAVELER)
+  fullName      String?
+  username      String?          @unique
+  location      String?
+  avatarUrl     String?
+  fcmToken      String?
+  isBanned      Boolean          @default(false)
+  banReason     String?
+  bannedAt      DateTime?
+  createdAt     DateTime         @default(now())
+  reviews       Review[]
+  reviewLikes   ReviewLike[]
+  favorites     Favorite[]
+  ownedPlaces   Place[]          @relation("PlaceOwner")
+  trips         Trip[]
+  tripMembers   TripMember[]
+  tripInvites   TripMember[]     @relation("TripMemberInviter")
+  diaryEntries  TripDiaryEntry[]
+  refreshTokens RefreshToken[]
 
   reviewedPlaces         Place[]                 @relation("PlaceReviewer")
   actedNotifications     Notification[]          @relation("NotificationActor")
@@ -348,4 +349,16 @@ model ChatMessage {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
 }
