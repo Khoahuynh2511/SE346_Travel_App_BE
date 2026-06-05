@@ -47,6 +47,13 @@ type PasswordResetJwtPayload = {
   purpose: "password-reset";
 };
 
+function parseRefreshToken(input: unknown): string {
+  if (typeof input === "string") {
+    return refreshSchema.parse({ refreshToken: input }).refreshToken;
+  }
+  return refreshSchema.parse(input).refreshToken;
+}
+
 function signPasswordResetToken(userId: number, email: string): string {
   const payload: PasswordResetJwtPayload = {
     sub: userId,
@@ -413,11 +420,11 @@ export const authService = {
     return token;
   },
 
-  async refreshAccessToken(refreshToken: string) {
-    const data = refreshSchema.parse({ refreshToken });
+  async refreshAccessToken(body: unknown) {
+    const refreshToken = parseRefreshToken(body);
 
     const existingToken = await prisma.refreshToken.findUnique({
-      where: { token: data.refreshToken },
+      where: { token: refreshToken },
       include: { user: true },
     });
 
@@ -426,12 +433,17 @@ export const authService = {
     }
 
     if (existingToken.expiresAt < new Date()) {
-      await prisma.refreshToken.delete({ where: { token: data.refreshToken } });
+      await prisma.refreshToken.delete({ where: { token: refreshToken } });
       throw Object.assign(new Error("REFRESH_TOKEN_EXPIRED"), { statusCode: 401 });
     }
 
+    if (existingToken.user.isBanned) {
+      await prisma.refreshToken.deleteMany({ where: { userId: existingToken.userId } });
+      throw Object.assign(new Error("USER_BANNED"), { statusCode: 403 });
+    }
+
     // Delete old refresh token (token rotation)
-    await prisma.refreshToken.delete({ where: { token: data.refreshToken } });
+    await prisma.refreshToken.delete({ where: { token: refreshToken } });
 
     // Generate new tokens
     const newAccessToken = this.signToken(existingToken.user.id, existingToken.user.email);
@@ -443,9 +455,9 @@ export const authService = {
     };
   },
 
-  async revokeRefreshToken(refreshToken: string): Promise<void> {
-    const data = refreshSchema.parse({ refreshToken });
-    await prisma.refreshToken.delete({ where: { token: data.refreshToken } }).catch(() => {
+  async revokeRefreshToken(body: unknown): Promise<void> {
+    const refreshToken = parseRefreshToken(body);
+    await prisma.refreshToken.delete({ where: { token: refreshToken } }).catch(() => {
       // Ignore if token doesn't exist
     });
   },

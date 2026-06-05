@@ -345,6 +345,10 @@ export const adminService = {
       data: updateData,
     });
 
+    if (data.isBanned) {
+      await prisma.refreshToken.deleteMany({ where: { userId: targetUserId } });
+    }
+
     return { ok: true, userId: targetUserId };
   },
 

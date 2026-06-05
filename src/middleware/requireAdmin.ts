@@ -9,8 +9,12 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
     }
     const user = await prisma.user.findUnique({
       where: { id: req.user.sub },
-      select: { role: true },
+      select: { role: true, isBanned: true },
     });
+    if (user?.isBanned) {
+      res.status(403).json({ ok: false, error: "USER_BANNED" });
+      return;
+    }
     if (!user || user.role !== "ADMIN") {
       res.status(403).json({ ok: false, error: "FORBIDDEN" });
       return;

@@ -256,6 +256,10 @@ authRouter.post(
         res.status(401).json(jsonError(401, e.message));
         return;
       }
+      if (e instanceof Error && e.message === "USER_BANNED") {
+        res.status(403).json(jsonError(403, "USER_BANNED"));
+        return;
+      }
       throw e;
     }
   })
