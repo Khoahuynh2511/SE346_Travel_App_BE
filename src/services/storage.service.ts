@@ -96,6 +96,16 @@ export const storageService = {
     return uploadFileToBucket(bucket, objectPath, file);
   },
 
+  async uploadTripCover(userId: number, file: Express.Multer.File): Promise<{ path: string; publicUrl: string }> {
+    const bucket = env.supabaseStorageBucket;
+    const validation = validateImageFile(file.buffer);
+    if (!validation.valid) {
+      throw Object.assign(new Error("UNSUPPORTED_MEDIA_TYPE"), { statusCode: 415 });
+    }
+    const objectPath = `trips/${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(validation.mime!)}`;
+    return uploadFileToBucket(bucket, objectPath, file);
+  },
+
   async uploadPlaceCover(
     userId: number,
     file: Express.Multer.File
