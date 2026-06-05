@@ -70,6 +70,7 @@ const tripWriteSchema = z
     image: z.string().url().optional().nullable(),
     budget: z.coerce.number().nonnegative().optional(),
     currency: z.string().trim().min(1).default("VND"),
+    ownerId: z.coerce.number().int().positive().optional(),
     members: z.array(tripMemberSchema).default([]),
     itineraryData: z.array(tripDaySchema).default([]),
   })
@@ -312,11 +313,48 @@ export const tripsService = {
       throw Object.assign(new Error("HOTEL_PLACE_NOT_FOUND"), { statusCode: 404 });
     }
 
-    const ownerUserId = existingTrip?.userId ?? userId;
-    const normalizedMembers = dedupeMembers(input.members).filter((member) => member.userId !== ownerUserId);
-    const memberUserIds = normalizedMembers
-      .map((member) => member.userId)
-      .filter((userId): userId is number => userId !== undefined);
+    const dedupedMembers = dedupeMembers(input.members);
+    const currentOwnerUserId = existingTrip?.userId ?? userId;
+    let ownerUserId = currentOwnerUserId;
+
+    if (input.ownerId !== undefined && input.ownerId !== currentOwnerUserId) {
+      if (!existingTrip || existingTrip.userId !== userId) {
+        throw Object.assign(new Error("FORBIDDEN"), { statusCode: 403 });
+      }
+
+      const payloadMemberUserIds = new Set(
+        dedupedMembers
+          .map((member) => member.userId)
+          .filter((memberUserId): memberUserId is number => memberUserId !== undefined)
+      );
+      const activeMemberUserIds = new Set(
+        existingTrip.members
+          .map((member) => member.userId)
+          .filter((memberUserId): memberUserId is number => memberUserId !== null)
+      );
+
+      if (!payloadMemberUserIds.has(input.ownerId) && !activeMemberUserIds.has(input.ownerId)) {
+        throw Object.assign(new Error("OWNER_MUST_BE_MEMBER"), { statusCode: 400 });
+      }
+
+      ownerUserId = input.ownerId;
+    }
+
+    const membersForSync =
+      existingTrip &&
+      ownerUserId !== currentOwnerUserId &&
+      !dedupedMembers.some((member) => member.userId === currentOwnerUserId)
+        ? [...dedupedMembers, { userId: currentOwnerUserId }]
+        : dedupedMembers;
+    const normalizedMembers = membersForSync.filter((member) => member.userId !== ownerUserId);
+    const memberUserIds = Array.from(
+      new Set(
+        [
+          ...normalizedMembers.map((member) => member.userId),
+          ownerUserId !== currentOwnerUserId ? ownerUserId : undefined,
+        ].filter((memberUserId): memberUserId is number => memberUserId !== undefined)
+      )
+    );
 
     const existingUsers = memberUserIds.length
       ? await prisma.user.findMany({
@@ -372,6 +410,7 @@ export const tripsService = {
       ? await prisma.trip.update({
           where: { id: tripId },
           data: {
+            userId: ownerUserId,
             title: input.title,
             destination,
             currentHotelName,
@@ -386,7 +425,7 @@ export const tripsService = {
         })
       : await prisma.trip.create({
           data: {
-            userId,
+            userId: ownerUserId,
             title: input.title,
             destination,
             currentHotelName,
@@ -553,6 +592,7 @@ type TripWriteBody = {
   budget?: unknown;
   totalBudgetPerPerson?: unknown;
   currency?: unknown;
+  ownerId?: unknown;
   members?: unknown;
   itineraryData?: unknown;
   days?: unknown;
@@ -580,6 +620,7 @@ function normalizeTripBody(body: unknown): TripWriteBody {
     image: optionalString(raw.image ?? raw.coverImageUrl),
     budget: raw.budget ?? raw.totalBudgetPerPerson,
     currency: optionalString(raw.currency),
+    ownerId: raw.ownerId,
     members: Array.isArray(raw.members) ? raw.members.map(normalizeMemberInput) : [],
     itineraryData: itineraryRaw.map(normalizeDayInput),
   };
