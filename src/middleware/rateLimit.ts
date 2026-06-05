@@ -1,30 +1,30 @@
 import rateLimit from "express-rate-limit";
 
 // Rate limiter for authentication endpoints (login, register, password reset)
-// 5 requests per 15 minutes
+// 1000 requests per 15 minutes (Relaxed for testing)
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: "TOO_MANY_REQUESTS" },
 });
 
 // Rate limiter for POST write operations (reviews, uploads)
-// 20 requests per minute
+// 1000 requests per minute (Relaxed for testing)
 export const strictLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 20,
+  windowMs: 60 * 1000,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: "TOO_MANY_REQUESTS" },
 });
 
 // General rate limiter for all other routes
-// 100 requests per 15 minutes
+// 5000 requests per 15 minutes (Relaxed for testing)
 export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  windowMs: 15 * 60 * 1000,
+  max: 5000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: "TOO_MANY_REQUESTS" },

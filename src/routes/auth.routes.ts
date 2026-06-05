@@ -163,12 +163,27 @@ authRouter.post(
   "/reset-password",
   wrapAsync(async (req, res) => {
     try {
+      const body = req.body as any;
+      // If request has 'otp' or 'code', use OTP-based change password
+      if (body && (body.otp || body.code)) {
+        const out = await authService.changePasswordWithOtp(req.body);
+        res.json({ ok: true, data: out });
+        return;
+      }
+
+      // Otherwise fallback to old token-based logic
       const out = await authService.resetPassword(req.body);
       res.json({ ok: true, data: out });
     } catch (e) {
-      if (e instanceof Error && e.message === "INVALID_RESET_TOKEN") {
-        res.status(400).json(jsonError(400, "INVALID_RESET_TOKEN"));
-        return;
+      if (e instanceof Error) {
+        if (e.message === "INVALID_RESET_TOKEN" || e.message === "INVALID_OTP") {
+          res.status(400).json(jsonError(400, e.message));
+          return;
+        }
+        if (e.message === "OTP_EXPIRED") {
+          res.status(400).json(jsonError(400, "OTP_EXPIRED"));
+          return;
+        }
       }
       throw e;
     }

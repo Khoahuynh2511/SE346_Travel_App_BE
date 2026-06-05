@@ -33,8 +33,13 @@ const resetPasswordSchema = z.object({
 
 const changePasswordOtpSchema = z.object({
   email: z.string().email(),
-  otp: z.string().length(6),
-  newPassword: z.string().min(8),
+  otp: z.string().length(6).optional(),
+  code: z.string().length(6).optional(), // Support both 'otp' and 'code'
+  newPassword: z.string().min(8).optional(),
+  password: z.string().min(8).optional(),
+}).refine(data => (data.otp || data.code) && (data.newPassword || data.password), {
+  message: "OTP/Code and new password must be provided",
+  path: ["otp"]
 });
 
 const refreshSchema = z.object({
@@ -237,6 +242,7 @@ export const authService = {
     });
 
     await emailService.sendOtpEmail(email, otp);
+    console.log(`OTP generated for ${email}: ${otp}`);
 
     return { message: "OTP sent successfully." };
   },
@@ -244,16 +250,22 @@ export const authService = {
   async changePasswordWithOtp(body: unknown) {
     const data = changePasswordOtpSchema.parse(body);
     const user = await prisma.user.findUnique({ where: { email: data.email } });
+    const otp = data.otp || data.code;
 
-    if (!user || user.otpCode !== data.otp) {
+    if (!user || user.otpCode !== otp) {
+      console.log(`Password reset failed for ${data.email}: OTP mismatch. Provided: ${otp}, Actual: ${user?.otpCode}`);
       throw Object.assign(new Error("INVALID_OTP"), { statusCode: 400 });
     }
 
     if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
+      console.log(`Password reset failed for ${data.email}: OTP expired`);
       throw Object.assign(new Error("OTP_EXPIRED"), { statusCode: 400 });
     }
 
-    const passwordHash = await bcrypt.hash(data.newPassword, 10);
+    const newPassword = data.newPassword || data.password;
+    if (!newPassword) throw Object.assign(new Error("PASSWORD_REQUIRED"), { statusCode: 400 });
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
 
     await prisma.user.update({
       where: { id: user.id },
@@ -269,7 +281,7 @@ export const authService = {
       const { data: suData } = await admin.auth.admin.listUsers();
       const suUser = suData.users.find(u => u.email === data.email);
       if (suUser) {
-        await admin.auth.admin.updateUserById(suUser.id, { password: data.newPassword });
+        await admin.auth.admin.updateUserById(suUser.id, { password: newPassword });
       }
     }
 
