@@ -4,6 +4,7 @@ import type { Pagination } from "../http/pagination.js";
 import { notificationService } from "./notification.service.js";
 import { realtimeService } from "./realtime.service.js";
 import { notDeleted } from "../utils/softDelete.js";
+import { logger } from "../utils/logger.js";
 
 async function recalcPlaceStats(placeId: string) {
   const agg = await prisma.review.aggregate({
@@ -101,14 +102,13 @@ export const reviewsService = {
   },
 
   async listForUser(userId: number, paging: Pagination) {
-    const where = { userId, ...notDeleted };
+    const where = { userId, ...notDeleted, place: { is: notDeleted } };
     const [total, list] = await Promise.all([
       prisma.review.count({ where }),
       prisma.review.findMany({
         where,
         include: {
           place: {
-            where: notDeleted,
             include: { images: { orderBy: { createdAt: "asc" } } },
           },
           images: true,
@@ -162,10 +162,14 @@ export const reviewsService = {
       },
     });
     await recalcPlaceStats(placeId);
-    void realtimeService.publishReviewCreated({
-      placeId,
-      reviewId: rev.id,
-    });
+    void realtimeService
+      .publishReviewCreated({
+        placeId,
+        reviewId: rev.id,
+      })
+      .catch((err) => {
+        logger.warn({ err, placeId, reviewId: rev.id }, "review realtime side effect failed");
+      });
     return rev;
   },
 
