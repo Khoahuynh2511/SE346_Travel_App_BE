@@ -1,6 +1,7 @@
 import { PlaceCategory } from "@prisma/client";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
+import { toNumberOrNull } from "../utils/number.js";
 
 function toFavoriteListDto(p: {
   id: string;
@@ -12,7 +13,7 @@ function toFavoriteListDto(p: {
   coverImageUrl: string;
   category: PlaceCategory;
   about: string;
-  priceLevel: number | null;
+  priceLevel: unknown;
   latitude: number | null;
   longitude: number | null;
   images: { url: string }[];
@@ -28,7 +29,7 @@ function toFavoriteListDto(p: {
     coverImageUrl: p.coverImageUrl,
     category: p.category,
     about: p.about,
-    priceLevel: p.priceLevel,
+    priceLevel: toNumberOrNull(p.priceLevel),
     latitude: p.latitude,
     longitude: p.longitude,
     saveAt,
