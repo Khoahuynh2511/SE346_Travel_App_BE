@@ -1021,6 +1021,56 @@ const SEEDED_PLACES_DATA = [
   ...ADDED_PLACES_DATA,
 ];
 const PENDING_SEED_PLACE_COUNT = 4;
+const MULTI_IMAGE_SEED_PLACE_INDEXES = new Set([0, 1]);
+const PROMOTED_OWNER_REVIEW_TIMELINE_COUNTS = [
+  { before: 0, after: 10 },
+  { before: 1, after: 8 },
+  { before: 0, after: 7 },
+  { before: 2, after: 6 },
+  { before: 1, after: 5 },
+];
+
+function getRegularReviewSeedCount(placeIndex: number) {
+  return 2 + (placeIndex % 2);
+}
+
+function getSeedPlaceImages(place: { images: string[] }, placeIndex: number) {
+  return MULTI_IMAGE_SEED_PLACE_INDEXES.has(placeIndex)
+    ? place.images.slice(0, 4)
+    : place.images.slice(0, 1);
+}
+
+function getReviewSeedContent(place: { reviews: { content: string }[] }, reviewIndex: number) {
+  const fallbackReviews = [
+    "Tráº£i nghiá»‡m ráº¥t á»•n, khÃ´ng gian Ä‘Ã¡ng ghÃ© vÃ  phÃ¹ há»£p cho lá»‹ch trÃ¬nh du lá»‹ch.",
+    "Dá»‹ch vá»¥ tá»‘t, vá»‹ trÃ­ thuáº­n tiá»‡n vÃ  nhÃ¢n viÃªn há»— trá»£ nhiá»‡t tÃ¬nh.",
+    "MÃ¬nh sáº½ quay láº¡i náº¿u cÃ³ dá»‹p, Ä‘áº·c biá»‡t lÃ  sau khi cÃ³ chÆ°Æ¡ng trÃ¬nh Æ°u Ä‘Ã£i.",
+  ];
+  return place.reviews[reviewIndex % place.reviews.length]?.content ?? fallbackReviews[reviewIndex % fallbackReviews.length];
+}
+
+function getReviewSeedRating(reviewIndex: number) {
+  const ratings = [5, 5, 4, 5, 4, 3];
+  return ratings[reviewIndex % ratings.length];
+}
+
+async function syncSeededPlaceStats(placeIds: string[]) {
+  for (const placeId of placeIds) {
+    const agg = await prisma.review.aggregate({
+      where: { placeId, deletedAt: null },
+      _avg: { rating: true },
+      _count: true,
+    });
+    const avg = agg._avg.rating ?? 0;
+    await prisma.place.update({
+      where: { id: placeId },
+      data: {
+        averageRating: Math.round(avg * 10) / 10,
+        ratingCount: agg._count,
+      },
+    });
+  }
+}
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
@@ -1085,9 +1135,6 @@ async function main() {
   // ── Places + Images + Reviews ──────────────────────────────────────────────
   const createdPlaces: string[] = [];
   const createdPlaceCoverImages: string[] = [];
-  const reviewData: Prisma.ReviewCreateManyInput[] = [];
-  const promotionSevenPlaceIdx = SEEDED_PLACES_DATA.length - 7;
-  const reviewTimelinePlaceIndexes = new Set([0, promotionSevenPlaceIdx]);
 
   for (let i = 0; i < SEEDED_PLACES_DATA.length; i++) {
     const p = SEEDED_PLACES_DATA[i];
@@ -1101,7 +1148,7 @@ async function main() {
     const uploadedImages = await uploadSeedImages({
       storage, bucket,
       prefix: `seed/places/${slug}`,
-      imageUrls: p.images,
+      imageUrls: getSeedPlaceImages(p, i),
     });
 
     const place = await prisma.place.create({
@@ -1125,21 +1172,6 @@ async function main() {
         data: uploadedImages.slice(1).map((url) => ({ placeId: place.id, url })),
       });
     }
-
-    const seededReviews = reviewTimelinePlaceIndexes.has(i)
-      ? p.reviews.slice(0, 2)
-      : p.reviews;
-    reviewData.push(
-      ...seededReviews.filter((rev) => rev.userIdx < travelerUsers.length).map((rev, reviewIdx) => ({
-        placeId: place.id,
-        userId: travelerUsers[rev.userIdx].id,
-        rating: rev.rating,
-        content: rev.content,
-        createdAt: reviewTimelinePlaceIndexes.has(i)
-          ? new Date(Date.UTC(2026, 4, 30, 8 + reviewIdx, 0, 0))
-          : undefined,
-      })),
-    );
 
   }
 
@@ -1175,14 +1207,108 @@ async function main() {
     }
   }
 
-  if (reviewData.length > 0) {
-    await prisma.review.createMany({
-      data: reviewData,
-    });
-  }
-
   // ── Promotions ─────────────────────────────────────────────────────────────
   console.log("🎫 Creating promotions...");
+  const promoTemplates = [
+    { title: "Giảm 20% Tour Khám Phá",        isActive: true,  startDate: "01/06/2026", endDate: "30/06/2026", days: ["T2","T3","T4","T5","T6"], startTime: "08:00 AM", endTime: "05:00 PM", specificTime: true  },
+    { title: "Combo Gia Đình - Tiết Kiệm 30%", isActive: true,  startDate: "15/06/2026", endDate: "15/08/2026", days: ["T7","CN"],                startTime: "09:00 AM", endTime: "06:00 PM", specificTime: true  },
+    { title: "Khuyến Mãi Mùa Hè Rực Rỡ",      isActive: false, startDate: "01/07/2026", endDate: "31/08/2026", days: ["T2","T3","T4","T5","T6","T7","CN"], startTime: "", endTime: "", specificTime: false },
+    { title: "Giảm 15% Đặt Sớm",              isActive: false, startDate: "01/05/2026", endDate: "31/12/2026", days: ["T2","T3","T4","T5","T6"], startTime: "10:00 AM", endTime: "02:00 PM", specificTime: true  },
+    { title: "Happy Hour Cuối Tuần",           isActive: false, startDate: "01/06/2026", endDate: "30/09/2026", days: ["T7","CN"],                startTime: "04:00 PM", endTime: "08:00 PM", specificTime: true  },
+    { title: "Ưu Đãi Nhóm Bạn",                isActive: false, startDate: "10/06/2026", endDate: "10/10/2026", days: ["T6","T7","CN"],           startTime: "03:00 PM", endTime: "09:00 PM", specificTime: true  },
+    { title: "Voucher Khách Quay Lại",         isActive: false, startDate: "01/08/2026", endDate: "31/12/2026", days: ["T2","T3","T4","T5"],      startTime: "", endTime: "", specificTime: false },
+    { title: "Ưu Đãi Nghỉ Dưỡng Cuối Tuần",    isActive: true,  startDate: "01/06/2026", endDate: "31/08/2026", days: ["T6","T7","CN"],           startTime: "02:00 PM", endTime: "10:00 PM", specificTime: true  },
+    { title: "Mua Sắm Tặng Voucher",           isActive: false, startDate: "01/07/2026", endDate: "30/09/2026", days: ["T2","T3","T4","T5","T6"], startTime: "10:00 AM", endTime: "09:00 PM", specificTime: true  },
+    { title: "Giảm Giá Quà Địa Phương",        isActive: false, startDate: "15/07/2026", endDate: "15/10/2026", days: ["T7","CN"],                startTime: "", endTime: "", specificTime: false },
+  ];
+
+  const ownerOnePromotionPlaceIndexes = [0, 0, 0, 1, 2, 3, 4];
+  const ownerOnePromotedPlaceIndexes = Array.from(new Set(ownerOnePromotionPlaceIndexes));
+  const ownerTwoPromotionPlaceIndexes = Array.from(secondOwnerPlaceIndexes).slice(0, 3);
+  const promotionPlaceIndexes = [...ownerOnePromotionPlaceIndexes, ...ownerTwoPromotionPlaceIndexes];
+  const promotionActiveAtByIndex: Record<number, Date> = {
+    0: new Date("2026-06-01T01:00:00.000Z"),
+    1: new Date("2026-06-15T02:00:00.000Z"),
+    7: new Date("2026-06-01T03:00:00.000Z"),
+  };
+  const createdPromotions: Prisma.PromotionGetPayload<Record<string, never>>[] = [];
+  for (let idx = 0; idx < promoTemplates.length; idx++) {
+    const activeAt = promoTemplates[idx].isActive
+      ? promotionActiveAtByIndex[idx] ?? new Date("2026-06-01T00:00:00.000Z")
+      : null;
+    const startDate = parseSeedDate(promoTemplates[idx].startDate);
+    createdPromotions.push(
+      await prisma.promotion.create({
+        data: {
+          placeId: createdPlaces[promotionPlaceIndexes[idx]],
+          activeAt,
+          createdAt: activeAt ?? startDate,
+          ...promoTemplates[idx],
+          startDate,
+          endDate: parseSeedDate(promoTemplates[idx].endDate, true),
+        },
+      }),
+    );
+  }
+
+  const promotionStartByPlaceId = new Map<string, Date>();
+  for (const promotion of createdPromotions) {
+    const currentStart = promotionStartByPlaceId.get(promotion.placeId);
+    const candidateStart = promotion.activeAt ?? promotion.startDate;
+    if (!currentStart || candidateStart.getTime() > currentStart.getTime()) {
+      promotionStartByPlaceId.set(promotion.placeId, candidateStart);
+    }
+  }
+
+  const ownerOnePromotedPlaceIndexSet = new Set(ownerOnePromotedPlaceIndexes);
+  const expectedReviewCountByPlaceId = new Map<string, number>();
+  let prePromotionReviewCount = 0;
+  let postPromotionReviewCount = 0;
+  const seededReviewData: Prisma.ReviewCreateManyInput[] = createdPlaces.flatMap((_, placeIdx) => {
+    const placeId = createdPlaces[placeIdx];
+    const place = SEEDED_PLACES_DATA[placeIdx];
+    const promotedOwnerIndex = ownerOnePromotedPlaceIndexes.indexOf(placeIdx);
+
+    if (ownerOnePromotedPlaceIndexSet.has(placeIdx)) {
+      const timeline = PROMOTED_OWNER_REVIEW_TIMELINE_COUNTS[promotedOwnerIndex];
+      const promotionStart = promotionStartByPlaceId.get(placeId) ?? new Date("2026-06-01T00:00:00.000Z");
+      prePromotionReviewCount += timeline.before;
+      postPromotionReviewCount += timeline.after;
+      expectedReviewCountByPlaceId.set(placeId, timeline.before + timeline.after);
+
+      const beforeReviews = Array.from({ length: timeline.before }, (_, reviewIdx) => ({
+        placeId,
+        userId: travelerUsers[reviewIdx % travelerUsers.length].id,
+        rating: getReviewSeedRating(reviewIdx),
+        content: getReviewSeedContent(place, reviewIdx),
+        createdAt: new Date(promotionStart.getTime() - (timeline.before - reviewIdx) * 6 * 60 * 60 * 1000),
+      }));
+      const afterReviews = Array.from({ length: timeline.after }, (_, reviewIdx) => {
+        const contentIndex = reviewIdx + timeline.before;
+        return {
+          placeId,
+          userId: travelerUsers[contentIndex % travelerUsers.length].id,
+          rating: getReviewSeedRating(contentIndex),
+          content: getReviewSeedContent(place, contentIndex),
+          createdAt: new Date(promotionStart.getTime() + (reviewIdx + 1) * 6 * 60 * 60 * 1000),
+        };
+      });
+      return [...beforeReviews, ...afterReviews];
+    }
+
+    const reviewCount = getRegularReviewSeedCount(placeIdx);
+    expectedReviewCountByPlaceId.set(placeId, reviewCount);
+    const reviewStart = new Date(Date.UTC(2026, 4, 20 + (placeIdx % 10), 7, 0, 0));
+    return Array.from({ length: reviewCount }, (_, reviewIdx) => ({
+      placeId,
+      userId: travelerUsers[(placeIdx + reviewIdx) % travelerUsers.length].id,
+      rating: getReviewSeedRating(reviewIdx),
+      content: getReviewSeedContent(place, reviewIdx),
+      createdAt: new Date(reviewStart.getTime() + reviewIdx * 4 * 60 * 60 * 1000),
+    }));
+  });
+  await prisma.review.createMany({ data: seededReviewData });
+
   const demoReviewAtFirstPlace = await prisma.review.findFirstOrThrow({
     where: { placeId: createdPlaces[0], userId: travelerUsers[0].id },
     select: { id: true },
@@ -1198,46 +1324,6 @@ async function main() {
     ],
     skipDuplicates: true,
   });
-
-  const promoTemplates = [
-    { title: "Giảm 20% Tour Khám Phá",        isActive: true,  startDate: "01/06/2026", endDate: "30/06/2026", days: ["T2","T3","T4","T5","T6"], startTime: "08:00 AM", endTime: "05:00 PM", specificTime: true  },
-    { title: "Combo Gia Đình - Tiết Kiệm 30%", isActive: true,  startDate: "15/06/2026", endDate: "15/08/2026", days: ["T7","CN"],                startTime: "09:00 AM", endTime: "06:00 PM", specificTime: true  },
-    { title: "Khuyến Mãi Mùa Hè Rực Rỡ",      isActive: false, startDate: "01/07/2026", endDate: "31/08/2026", days: ["T2","T3","T4","T5","T6","T7","CN"], startTime: "", endTime: "", specificTime: false },
-    { title: "Giảm 15% Đặt Sớm",              isActive: false, startDate: "01/05/2026", endDate: "31/12/2026", days: ["T2","T3","T4","T5","T6"], startTime: "10:00 AM", endTime: "02:00 PM", specificTime: true  },
-    { title: "Happy Hour Cuối Tuần",           isActive: false, startDate: "01/06/2026", endDate: "30/09/2026", days: ["T7","CN"],                startTime: "04:00 PM", endTime: "08:00 PM", specificTime: true  },
-    { title: "Ưu Đãi Nhóm Bạn",                isActive: false, startDate: "10/06/2026", endDate: "10/10/2026", days: ["T6","T7","CN"],           startTime: "03:00 PM", endTime: "09:00 PM", specificTime: true  },
-    { title: "Voucher Khách Quay Lại",         isActive: false, startDate: "01/08/2026", endDate: "31/12/2026", days: ["T2","T3","T4","T5"],      startTime: "", endTime: "", specificTime: false },
-    { title: "Ưu Đãi Nghỉ Dưỡng Cuối Tuần",    isActive: true,  startDate: "01/06/2026", endDate: "31/08/2026", days: ["T6","T7","CN"],           startTime: "02:00 PM", endTime: "10:00 PM", specificTime: true  },
-    { title: "Mua Sắm Tặng Voucher",           isActive: false, startDate: "01/07/2026", endDate: "30/09/2026", days: ["T2","T3","T4","T5","T6"], startTime: "10:00 AM", endTime: "09:00 PM", specificTime: true  },
-    { title: "Giảm Giá Quà Địa Phương",        isActive: false, startDate: "15/07/2026", endDate: "15/10/2026", days: ["T7","CN"],                startTime: "", endTime: "", specificTime: false },
-  ];
-
-  const ownerOnePromotionPlaceIndexes = [0, 0, 0, 1, 2, 3, 4];
-  const ownerTwoPromotionPlaceIndexes = Array.from(secondOwnerPlaceIndexes).slice(0, 3);
-  const promotionPlaceIndexes = [...ownerOnePromotionPlaceIndexes, ...ownerTwoPromotionPlaceIndexes];
-  const promotionActiveAtByIndex: Record<number, Date> = {
-    0: new Date("2026-06-01T01:00:00.000Z"),
-    1: new Date("2026-06-15T02:00:00.000Z"),
-    7: new Date("2026-06-01T03:00:00.000Z"),
-  };
-  const createdPromotions: Prisma.PromotionGetPayload<Record<string, never>>[] = [];
-  for (let idx = 0; idx < promoTemplates.length; idx++) {
-    const activeAt = promoTemplates[idx].isActive
-      ? promotionActiveAtByIndex[idx] ?? new Date("2026-06-01T00:00:00.000Z")
-      : null;
-    createdPromotions.push(
-      await prisma.promotion.create({
-        data: {
-          placeId: createdPlaces[promotionPlaceIndexes[idx]],
-          activeAt,
-          ...promoTemplates[idx],
-          startDate: parseSeedDate(promoTemplates[idx].startDate),
-          endDate: parseSeedDate(promoTemplates[idx].endDate, true),
-        },
-      }),
-    );
-  }
-
   const postActiveFavoriteSeeds = [
     { promotionIdx: 0, userIndexes: [1, 2, 3, 4] },
     { promotionIdx: 7, userIndexes: [0, 3, 5, 6] },
@@ -1295,50 +1381,41 @@ async function main() {
     }
   }
 
-  const promotionReviewTimelines = [
-    { promotionIdx: 0, beforeActive: 2, targetTotal: 10, addAfterActive: 8 },
-    { promotionIdx: 7, beforeActive: 1, targetTotal: 15, addAfterActive: 14 },
-  ];
-  let postActiveReviewCount = 0;
-  for (const timeline of promotionReviewTimelines) {
-    const promotion = createdPromotions[timeline.promotionIdx];
-    if (!promotion.activeAt) {
-      throw new Error(`Promotion index ${timeline.promotionIdx} must be active for review timeline seed`);
-    }
-
-    await prisma.review.createMany({
-      data: Array.from({ length: timeline.addAfterActive }, (_, offset) => ({
-        placeId: promotion.placeId,
-        userId: travelerUsers[offset % travelerUsers.length].id,
-        rating: 4 + (offset % 2),
-        content: `Review seeded after promotion index ${timeline.promotionIdx} activation #${offset + 1}`,
-        createdAt: new Date(promotion.activeAt!.getTime() + (offset + 1) * 60 * 60 * 1000),
-      })),
-    });
-    postActiveReviewCount += timeline.addAfterActive;
-
-    const [beforeActive, totalReviews, reviewImages] = await Promise.all([
+  for (let promotionIdx = 0; promotionIdx < ownerOnePromotionPlaceIndexes.length; promotionIdx++) {
+    const placeIdx = ownerOnePromotionPlaceIndexes[promotionIdx];
+    const promotedOwnerIndex = ownerOnePromotedPlaceIndexes.indexOf(placeIdx);
+    const timeline = PROMOTED_OWNER_REVIEW_TIMELINE_COUNTS[promotedOwnerIndex];
+    const promotion = createdPromotions[promotionIdx];
+    const promotionStart = promotion.activeAt ?? promotion.createdAt;
+    const [beforePromotion, afterPromotion] = await Promise.all([
       prisma.review.count({
-        where: { placeId: promotion.placeId, createdAt: { lt: promotion.activeAt } },
+        where: { placeId: promotion.placeId, createdAt: { lt: promotionStart } },
       }),
-      prisma.review.count({ where: { placeId: promotion.placeId } }),
-      prisma.reviewImage.count({
-        where: {
-          review: {
-            placeId: promotion.placeId,
-            createdAt: { gt: promotion.activeAt },
-          },
-        },
+      prisma.review.count({
+        where: { placeId: promotion.placeId, createdAt: { gte: promotionStart } },
       }),
     ]);
-    if (beforeActive !== timeline.beforeActive || totalReviews !== timeline.targetTotal || reviewImages !== 0) {
+    if (beforePromotion !== timeline.before || afterPromotion !== timeline.after) {
       throw new Error(
-        `Promotion index ${timeline.promotionIdx} review seed mismatch: ` +
-        `before=${beforeActive}/${timeline.beforeActive}, total=${totalReviews}/${timeline.targetTotal}, ` +
-        `postActiveImages=${reviewImages}/0`,
+        `Promotion review seed mismatch for promotion ${promotionIdx}: ` +
+        `before=${beforePromotion}/${timeline.before}, after=${afterPromotion}/${timeline.after}`,
       );
     }
   }
+
+  const reviewCountsByPlace = await prisma.review.groupBy({
+    by: ["placeId"],
+    _count: true,
+  });
+  const reviewCountMap = new Map(reviewCountsByPlace.map((row) => [row.placeId, row._count]));
+  for (const placeId of createdPlaces) {
+    const expectedCount = expectedReviewCountByPlaceId.get(placeId) ?? 0;
+    const actualCount = reviewCountMap.get(placeId) ?? 0;
+    if (actualCount !== expectedCount) {
+      throw new Error(`Review seed mismatch for place ${placeId}: ${actualCount}/${expectedCount}`);
+    }
+  }
+  await syncSeededPlaceStats(createdPlaces);
 
   // Trips for GET /api/v1/users/me/trips
   console.log("Creating sample trips...");
@@ -1840,7 +1917,7 @@ async function main() {
   console.log(`📊 Summary:`);
   console.log(`   👥 ${createdUsers.length} users (${travelerUsers.length} travelers + 2 owners + 1 admin)`);
   console.log(`   🏝️  ${SEEDED_PLACES_DATA.length} places (${attractions} ATTRACTIONS · ${dining} DINING · ${festivals} FESTIVALS · ${stays} STAYS · ${shopping} SHOPPING)`);
-  console.log(`   ⭐ ${totalReviews} reviews (${postActiveReviewCount} seeded after promotion activation)`);
+  console.log(`   ⭐ ${totalReviews} reviews (${prePromotionReviewCount} before owner promotions, ${postPromotionReviewCount} after owner promotions)`);
   console.log(`   🎫 ${createdPromotions.length} promotions (${activePromotions.length} active)`);
   console.log(`   ❤️  ${totalFavorites} favorites`);
   console.log(`   trips: ${tripStats.trips} (${sampleTrip.title}, ${weekendTrip.title}, ${pendingInviteTrip.title})`);
