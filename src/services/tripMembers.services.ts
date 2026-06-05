@@ -24,6 +24,15 @@ const memberRecommendationSearchSchema = z
 const tripInvitationInclude = Prisma.validator<Prisma.TripMemberInclude>()({
   trip: {
     include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          username: true,
+          avatarUrl: true,
+        },
+      },
       currentHotelPlace: {
         select: {
           id: true,

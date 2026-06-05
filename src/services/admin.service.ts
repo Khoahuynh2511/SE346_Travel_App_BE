@@ -6,6 +6,10 @@ import type { Pagination } from "../http/pagination.js";
 
 const statusFilterSchema = z.enum(["PENDING", "APPROVED", "REJECTED"]).optional();
 const roleFilterSchema = z.enum(["TRAVELER", "OWNER", "ADMIN"]).optional();
+const bannedFilterSchema = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true")
+  .optional();
 
 const rejectPlaceBodySchema = z.object({
   rejectionReason: z.string().max(500).optional(),
@@ -216,12 +220,17 @@ export const adminService = {
   ) {
     const searchRaw = query.search;
     const roleRaw = query.role;
+    const isBannedRaw = query.isBanned;
     const role = roleRaw
       ? (roleFilterSchema.parse(roleRaw) as UserRole)
+      : undefined;
+    const isBanned = isBannedRaw
+      ? bannedFilterSchema.parse(isBannedRaw)
       : undefined;
 
     const where: {
       role?: UserRole;
+      isBanned?: boolean;
       OR?: Array<{
         username?: { contains: string; mode: "insensitive" };
         email?: { contains: string; mode: "insensitive" };
@@ -231,6 +240,10 @@ export const adminService = {
 
     if (role) {
       where.role = role;
+    }
+
+    if (isBanned !== undefined) {
+      where.isBanned = isBanned;
     }
 
     if (searchRaw) {

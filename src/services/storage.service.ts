@@ -71,7 +71,7 @@ export const storageService = {
     if (!validation.valid) {
       throw Object.assign(new Error("UNSUPPORTED_MEDIA_TYPE"), { statusCode: 415 });
     }
-    const objectPath = `${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(validation.mime!)}`;
+    const objectPath = `reviews/${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(validation.mime!)}`;
     return uploadFileToBucket(bucket, objectPath, file);
   },
 
@@ -79,17 +79,8 @@ export const storageService = {
     userId: number,
     files: Express.Multer.File[]
   ): Promise<{ items: { path: string; publicUrl: string }[] }> {
-    const bucket = env.supabaseStorageBucket;
     const items = await Promise.all(
-      files.map((file) => {
-        // Validate magic bytes first to get correct MIME type
-        const validation = validateImageFile(file.buffer);
-        if (!validation.valid) {
-          throw Object.assign(new Error("UNSUPPORTED_MEDIA_TYPE"), { statusCode: 415 });
-        }
-        const objectPath = `${userId}/${randomBytes(16).toString("hex")}.${getFileExtension(validation.mime!)}`;
-        return uploadFileToBucket(bucket, objectPath, file);
-      })
+      files.map((file) => storageService.uploadReviewImage(userId, file))
     );
     return { items };
   },
