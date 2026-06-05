@@ -182,6 +182,23 @@ export const groqService = {
   },
 
   async getUserProfile(userId: number) {
-    return await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        fullName: true,
+        username: true,
+        location: true,
+        role: true,
+      },
+    });
+
+    if (!user) return null;
+
+    return {
+      displayName: user.fullName || user.username || null,
+      username: user.username,
+      location: user.location,
+      role: user.role,
+    };
   },
 };
