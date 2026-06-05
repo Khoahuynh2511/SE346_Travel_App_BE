@@ -22,7 +22,6 @@ import { recommendationRouter } from "./routes/recommendation.routes.js";
 import { supabaseConfigured } from "./integrations/supabaseAdmin.js";
 import { env } from "./config/env.js";
 import { httpErrorMiddleware } from "./http/errors.js";
-import { authLimiter, generalLimiter, strictLimiter } from "./middleware/rateLimit.js";
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { Router } from "express";
@@ -64,19 +63,9 @@ app.use(
 
 const api = express.Router();
 
-// Apply general rate limiter to all API routes
-api.use(generalLimiter);
-
-// Apply auth rate limiter to authentication routes
-api.use("/auth", authLimiter, authRouter);
-
-// Apply strict rate limiter to upload routes (POST write operations)
-api.use("/uploads", strictLimiter, uploadsRouter);
-
-// Apply strict rate limiter to review write operations
-api.use("/reviews", strictLimiter, reviewsRouter);
-
-// Mount remaining routes with general rate limiter
+api.use("/auth", authRouter);
+api.use("/uploads", uploadsRouter);
+api.use("/reviews", reviewsRouter);
 api.use("/users", usersRouter);
 api.use("/places", placesRouter);
 api.use("/owner", ownerRouter);
