@@ -20,24 +20,29 @@ import { notificationRouter } from "./routes/notification.routes.js";
 import { itineraryOptimizerRouter } from "./routes/itineraryOptimizer.routes.js";
 import { recommendationRouter } from "./routes/recommendation.routes.js";
 import { supabaseConfigured } from "./integrations/supabaseAdmin.js";
+import { env } from "./config/env.js";
 import { httpErrorMiddleware } from "./http/errors.js";
 import { authLimiter, generalLimiter, strictLimiter } from "./middleware/rateLimit.js";
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { Router } from "express";
 
+const allowedOrigins = [
+  'http://localhost:8081',
+  'http://localhost:19000',
+  'http://localhost:19001',
+  'http://localhost:19002',
+  'http://192.168.123.10:8081',
+  'exp://localhost:8081',
+  'exp://192.168.123.10:8081',
+  'https://se346-travel-app-fe.vercel.app',
+  ...env.corsOrigins,
+];
+
 const app = express();
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
-  origin: [
-    'http://localhost:8081',
-    'http://localhost:19000',
-    'http://localhost:19001',
-    'http://localhost:19002',
-    'http://192.168.123.10:8081',
-    'exp://localhost:8081',
-    'exp://192.168.123.10:8081',
-  ],
+  origin: allowedOrigins,
   credentials: true,
 }));
 app.use(pinoHttp({ logger }));
