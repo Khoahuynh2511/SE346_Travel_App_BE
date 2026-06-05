@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../database/client.js";
 import { notificationService } from "./notification.service.js";
 import { notDeleted } from "../utils/softDelete.js";
+import { toNumberOrNull } from "../utils/number.js";
 
 const placeCategorySchema = z.enum([
   "ATTRACTIONS",
@@ -124,7 +125,7 @@ function toOwnerPlaceDetailDto(p: {
   featureLabel: string;
   coverImageUrl: string;
   about: string;
-  priceLevel: number | null;
+  priceLevel: unknown;
   latitude: number | null;
   longitude: number | null;
   status: PlaceStatus;
@@ -137,7 +138,7 @@ function toOwnerPlaceDetailDto(p: {
     ...toOwnerPlaceDto(p),
     about: p.about,
     featureLabel: p.featureLabel,
-    priceLevel: p.priceLevel,
+    priceLevel: toNumberOrNull(p.priceLevel),
     latitude: p.latitude,
     longitude: p.longitude,
     promotions: p.promotions.map(toPromotionDto),

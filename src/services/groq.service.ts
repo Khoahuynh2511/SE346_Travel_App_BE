@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import { prisma } from "../database/client.js";
 import { env } from "../config/env.js";
+import { toNumberOrDefault } from "../utils/number.js";
 
 const groq = new Groq({
   apiKey: env.groqApiKey,
@@ -163,8 +164,13 @@ export const groqService = {
     });
     if (!trip) return { error: "Trip not found" };
     let cost = 0;
-    trip.days.forEach(d => d.activities.forEach(a => cost += a.estimatedCost));
-    return { title: trip.title, budget: trip.budget, cost, remaining: trip.budget - cost };
+    trip.days.forEach((day) => {
+      day.activities.forEach((activity) => {
+        cost += toNumberOrDefault(activity.estimatedCost);
+      });
+    });
+    const budget = toNumberOrDefault(trip.budget);
+    return { title: trip.title, budget, cost, remaining: budget - cost };
   },
 
   async getUserFavorites(userId: number) {

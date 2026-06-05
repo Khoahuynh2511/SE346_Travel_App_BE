@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
 import { notDeleted } from "../utils/softDelete.js";
+import { toNumberOrNull } from "../utils/number.js";
 
 const placeCategorySchema = z.enum([
   "ATTRACTIONS",
@@ -21,7 +22,7 @@ function toListDto(p: {
   featureLabel: string;
   coverImageUrl: string;
   category: PlaceCategory;
-  priceLevel: number | null;
+  priceLevel: unknown;
   images: { url: string }[];
   promotions?: { id: string }[];
 }) {
@@ -34,7 +35,7 @@ function toListDto(p: {
     Features: p.featureLabel,
     category: p.category,
     Category: p.category,
-    priceLevel: p.priceLevel,
+    priceLevel: toNumberOrNull(p.priceLevel),
     image: p.coverImageUrl,
     images: [p.coverImageUrl, ...p.images.map((img) => img.url)],
     hasActivePromotion: Array.isArray(p.promotions) && p.promotions.length > 0,
@@ -201,7 +202,7 @@ export const placesService = {
       category: place.category,
       Category: place.category,
       about: place.about,
-      priceLevel: place.priceLevel,
+      priceLevel: toNumberOrNull(place.priceLevel),
       promotions: place.promotions.map(toPromotionDto),
       Promotions: place.promotions.map(toPromotionDto),
       Reviews: reviews,

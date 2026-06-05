@@ -1,4 +1,5 @@
 import { prisma } from "../database/client.js";
+import { toNumberOrDefault, toNumberOrNull } from "../utils/number.js";
 
 // ==================== Type Definitions ====================
 
@@ -512,6 +513,11 @@ async function optimizeItinerary(
   const enrichedPlaces: PlaceData[] = places.map((place) => ({
     ...place,
     category: place.category as PlaceCategory,
+    latitude: toNumberOrNull(place.latitude),
+    longitude: toNumberOrNull(place.longitude),
+    averageRating: toNumberOrDefault(place.averageRating),
+    ratingCount: toNumberOrDefault(place.ratingCount),
+    priceLevel: toNumberOrNull(place.priceLevel),
     hasPromotion: promotionPlaceIds.has(place.id),
   }));
 
