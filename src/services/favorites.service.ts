@@ -2,6 +2,9 @@ import { PlaceCategory } from "@prisma/client";
 import { prisma } from "../database/client.js";
 import type { Pagination } from "../http/pagination.js";
 import { toNumberOrNull } from "../utils/number.js";
+import { notDeleted } from "../utils/softDelete.js";
+
+const publicPlaceWhere = { status: "APPROVED" as const, ...notDeleted };
 
 function toFavoriteListDto(p: {
   id: string;
@@ -52,10 +55,11 @@ export const favoritesService = {
   async list(userId: number, paging?: Pagination) {
     const limit = paging?.limit ?? 50;
     const offset = paging?.offset ?? 0;
+    const where = { userId, place: publicPlaceWhere };
     const [total, rows] = await Promise.all([
-      prisma.favorite.count({ where: { userId } }),
+      prisma.favorite.count({ where }),
       prisma.favorite.findMany({
-        where: { userId },
+        where,
         include: {
           place: {
             include: { images: { orderBy: { createdAt: "asc" } } },
@@ -73,7 +77,10 @@ export const favoritesService = {
   },
 
   async add(userId: number, placeId: string) {
-    const place = await prisma.place.findUnique({ where: { id: placeId } });
+    const place = await prisma.place.findFirst({
+      where: { id: placeId, ...publicPlaceWhere },
+      select: { id: true },
+    });
     if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
     await prisma.favorite.upsert({
       where: { userId_placeId: { userId, placeId } },

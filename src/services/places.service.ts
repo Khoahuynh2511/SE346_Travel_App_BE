@@ -13,6 +13,8 @@ const placeCategorySchema = z.enum([
   "SHOPPING",
 ]);
 
+const publicPlaceWhere = { status: "APPROVED" as const, ...notDeleted };
+
 function toListDto(p: {
   id: string;
   name: string;
@@ -88,7 +90,7 @@ export const placesService = {
     const minRating = query.minRating ? parseFloat(query.minRating) : undefined;
     const maxPrice = query.maxPrice ? parseFloat(query.maxPrice) : undefined;
 
-    const where: Record<string, unknown> = { status: "APPROVED", ...notDeleted };
+    const where: Record<string, unknown> = { ...publicPlaceWhere };
 
     if (category) where.category = category;
 
@@ -153,7 +155,7 @@ export const placesService = {
 
   async getById(placeId: string) {
     const place = await prisma.place.findFirst({
-      where: { id: placeId, ...notDeleted },
+      where: { id: placeId, ...publicPlaceWhere },
       include: {
         images: { orderBy: { createdAt: "asc" } },
         promotions: {
@@ -171,9 +173,6 @@ export const placesService = {
       },
     });
     if (!place) return null;
-
-    // Only show APPROVED places to the public
-    if ((place as any).status !== "APPROVED") return null;
 
     const reviews = place.reviews.map((r) => {
       const displayName = r.user.fullName || r.user.username || "Traveler";
@@ -211,7 +210,7 @@ export const placesService = {
 
   async listPromotions(placeId: string) {
     const place = await prisma.place.findFirst({
-      where: { id: placeId, ...notDeleted },
+      where: { id: placeId, ...publicPlaceWhere },
       select: { id: true },
     });
     if (!place) return null;

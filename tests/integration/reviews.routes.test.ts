@@ -33,6 +33,7 @@ describe("Reviews integration", () => {
         category: "ATTRACTIONS",
         coverImageUrl: "https://example.com/place-cover.jpg",
         featureLabel: "Nice",
+        status: "APPROVED",
       },
     });
     placeId = place.id;

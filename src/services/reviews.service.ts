@@ -6,6 +6,8 @@ import { realtimeService } from "./realtime.service.js";
 import { notDeleted } from "../utils/softDelete.js";
 import { logger } from "../utils/logger.js";
 
+const publicPlaceWhere = { status: "APPROVED" as const, ...notDeleted };
+
 async function recalcPlaceStats(placeId: string) {
   const agg = await prisma.review.aggregate({
     where: { placeId, ...notDeleted },
@@ -72,7 +74,7 @@ function mapReviewListItem(r: {
 export const reviewsService = {
   async listForPlace(placeId: string, paging: Pagination) {
     const place = await prisma.place.findFirst({
-      where: { id: placeId, ...notDeleted },
+      where: { id: placeId, ...publicPlaceWhere },
       select: { id: true },
     });
     if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
@@ -146,7 +148,10 @@ export const reviewsService = {
 
   async create(placeId: string, userId: number, body: unknown) {
     const data = createReviewSchema.parse(body);
-    const place = await prisma.place.findFirst({ where: { id: placeId, ...notDeleted } });
+    const place = await prisma.place.findFirst({
+      where: { id: placeId, ...publicPlaceWhere },
+      select: { id: true },
+    });
     if (!place) throw Object.assign(new Error("PLACE_NOT_FOUND"), { statusCode: 404 });
 
     const rev = await prisma.review.create({

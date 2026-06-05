@@ -35,6 +35,7 @@ describe("Favorites integration", () => {
         coverImageUrl: params.coverImageUrl,
         featureLabel: params.featureLabel,
         about: `${params.name} test place`,
+        status: "APPROVED",
       },
     });
 
