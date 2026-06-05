@@ -1117,6 +1117,7 @@ async function main() {
           email: u.email, passwordHash: u.passwordHash,
           role: u.role, fullName: u.fullName, username: u.username,
           location: u.location, avatarUrl: u.avatarUrl ?? null,
+          emailVerified: true,
         },
       })
     )

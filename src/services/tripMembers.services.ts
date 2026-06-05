@@ -350,33 +350,38 @@ export const tripMembersService = {
     });
   },
 
-  async removeMember(userId: number, tripId: string, memberUserId: number) {
+  async removeMember(userId: number, tripId: string, memberIdentifier: string) {
     const trip = await assertTripOwner(userId, tripId);
-    if (memberUserId === trip.userId) {
+    const memberUserId = Number(memberIdentifier);
+    if (Number.isInteger(memberUserId) && memberUserId === trip.userId) {
       throw Object.assign(new Error("CANNOT_REMOVE_OWNER"), { statusCode: 400 });
     }
 
-    const member = await prisma.tripMember.findUnique({
-      where: { tripId_userId: { tripId, userId: memberUserId } },
-      select: { id: true, status: true },
-    });
+    const member = Number.isInteger(memberUserId)
+      ? await prisma.tripMember.findUnique({
+          where: { tripId_userId: { tripId, userId: memberUserId } },
+          select: { id: true, status: true, userId: true },
+        })
+      : await prisma.tripMember.findFirst({
+          where: { id: memberIdentifier, tripId },
+          select: { id: true, status: true, userId: true },
+        });
     if (!member) {
       throw Object.assign(new Error("TRIP_MEMBER_NOT_FOUND"), { statusCode: 404 });
+    }
+    if (member.userId === trip.userId) {
+      throw Object.assign(new Error("CANNOT_REMOVE_OWNER"), { statusCode: 400 });
     }
     if (member.status !== activeMemberStatus) {
       throw Object.assign(new Error("TRIP_MEMBER_NOT_ACTIVE"), { statusCode: 400 });
     }
 
-    const updated = await prisma.tripMember.update({
+    const removed = await prisma.tripMember.delete({
       where: { id: member.id },
-      data: {
-        status: "REMOVED",
-        removedAt: new Date(),
-      },
       include: tripInvitationInclude,
     });
 
-    return mapTripInvitation(updated);
+    return mapTripInvitation(removed);
   },
 
   async leaveTrip(userId: number, tripId: string) {

@@ -533,6 +533,22 @@ describe("Trips integration", () => {
     expect(restoreOwnerUpdateResponse.status).toBe(200);
     expect(restoreOwnerUpdateResponse.body.data.title).toBe("Da Lat Autumn Trip");
 
+    const removeMemberResponse = await request(app)
+      .delete(`/api/v1/trips/${tripId}/members/${collaboratorId}`)
+      .set(authHeader(token));
+
+    expect(removeMemberResponse.status).toBe(200);
+    expect(removeMemberResponse.body.data).toMatchObject({
+      tripId,
+      userId: collaboratorId,
+      status: "ACTIVE",
+    });
+
+    const deletedMembership = await prisma.tripMember.findUnique({
+      where: { tripId_userId: { tripId, userId: collaboratorId } },
+    });
+    expect(deletedMembership).toBeNull();
+
     const inviteResponse = await request(app)
       .post(`/api/v1/trips/${tripId}/members/invite`)
       .set(authHeader(token))
@@ -650,7 +666,7 @@ describe("Trips integration", () => {
     });
     expect(Number(dbTrip?.budget)).toBe(6200000);
     expect(Number(dbTrip?.totalBudgetPerPerson)).toBe(6200000);
-    expect(dbTrip?.members.filter((member) => member.status === "ACTIVE")).toHaveLength(2);
+    expect(dbTrip?.members.filter((member) => member.status === "ACTIVE")).toHaveLength(1);
     expect(dbTrip?.members.filter((member) => member.status === "REMOVED")).toHaveLength(1);
     expect(dbTrip?.days).toHaveLength(4);
     expect(dbTrip?.days[0].activities).toHaveLength(1);

@@ -131,6 +131,7 @@ describe("Auth Routes", () => {
           email: testEmail,
           passwordHash: await bcrypt.hash(testPassword, 10),
           fullName: "Test User",
+          emailVerified: true,
         },
       });
     });
@@ -160,6 +161,7 @@ describe("Auth Routes", () => {
           passwordHash: await bcrypt.hash(testPassword, 10),
           role: "ADMIN",
           fullName: "Admin User",
+          emailVerified: true,
         },
       });
 

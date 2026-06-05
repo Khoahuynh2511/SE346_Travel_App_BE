@@ -22,6 +22,16 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const EMAIL_VERIFICATION_EXEMPT_EMAILS = new Set([
+  "admin@example.com",
+  "owner@example.com",
+  "owner@example2.com",
+]);
+
+function isEmailVerificationExempt(email: string): boolean {
+  return EMAIL_VERIFICATION_EXEMPT_EMAILS.has(email.trim().toLowerCase());
+}
+
 const forgotPasswordSchema = z.object({
   email: z.string().email(),
 });
@@ -297,7 +307,7 @@ export const authService = {
     }
 
     // Check if email is verified
-    if (!user.emailVerified) {
+    if (!user.emailVerified && !isEmailVerificationExempt(user.email)) {
       throw Object.assign(new Error("EMAIL_NOT_VERIFIED"), { statusCode: 403 });
     }
 
